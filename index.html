@@ -135,7 +135,6 @@
             letter-spacing: 1px;
         }
         #bpm-display {
-            /* 修正: 操作ボタンと被らないよう上部に移動 */
             top: 30px; 
             right: 40px;
             text-align: right;
@@ -145,7 +144,6 @@
         @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(1px,1px); } 75% { transform: translate(-1px,-1px); } }
 
         #wind-display {
-            /* 修正: 操作ボタンと被らないよう上部に移動 */
             top: 30px; 
             left: 40px;
             text-align: left;
@@ -219,7 +217,7 @@
             <h2>INTEL</h2>
             <div class="mission-detail typing" id="briefing-intel"></div>
         </div>
-        <div class="hint-text">※ 弾は風に流されます。風上へのズレを狙ってください。</div>
+        <div class="hint-text">※ 弾は風に流されます。FOCUS (Space/ボタン) でタイミングを合わせてください。</div>
         <div class="btn disabled" id="briefing-btn">ACCEPT</div>
     </div>
 
@@ -247,11 +245,12 @@
 
 <script>
 /**
- * THE CONTRACT - PROFESSIONAL SNIPER SIM -
- * * Core Mechanics:
- * - Auto Tracking: Scope follows target automatically.
- * - Deflection: Bullets drift with wind. Hit Pos = Scope Pos + Wind Vector.
- * - Sway: Scope moves in a pattern. Player must shoot when Sway compensates for Wind.
+ * THE CONTRACT - PROFESSIONAL SNIPER SIM (REFACTORED)
+ * * Update Concepts:
+ * 1. Auto Compensation: Scope automatically drifts upwind to compensate for 85% of wind.
+ * 2. Visual Timing: Reticle turns RED when the shot is guaranteed to hit.
+ * 3. Fair Difficulty: Civilians don't spawn on top of targets.
+ * 4. Tracer: Visual feedback of bullet trajectory.
  */
 
 // ==========================================
@@ -263,10 +262,11 @@ const GLOBAL = {
     BASE_SWAY: 120,        // 手ブレの基本振幅
     SWAY_SPEED: 0.0015,    // 手ブレ速度
     WIND_INFLUENCE: 2.0,   // 風速1m/sあたりの着弾ズレ(px)
+    AUTO_COMPENSATION: 0.85, // 自動風補正率 (85%はカメラが自動で補正してくれる)
     
     // FOCUS補正
-    FOCUS_SLOW: 0.1,       // 時間経過がどれだけ遅くなるか
-    FOCUS_STABILIZE: 0.6,  // 振幅がどれだけ収まるか (風より小さくなると当たらないので下げすぎ注意)
+    FOCUS_SLOW: 0.1,       // FOCUS時の時間経過速度
+    FOCUS_STABILIZE: 0.6,  // FOCUS時の振幅抑制率
     
     // BPM
     BPM_BASE: 60,
@@ -275,7 +275,7 @@ const GLOBAL = {
     BPM_RISE: 30,
     BPM_RECOVER: 15,
     
-    HIT_RADIUS: 18,        // 命中判定半径
+    HIT_RADIUS: 22,        // 命中判定半径（少し甘めに調整）
 };
 
 const LEVELS = [
@@ -283,7 +283,7 @@ const LEVELS = [
         id: 1,
         title: "CONTRACT #001: THE WATCHER",
         target: "ターゲット：監視員\nビルの屋上で静止している。",
-        intel: "微風。偏差射撃の基本を確認せよ。\n弾は風に流される。\nスコープが「風上」にズレた瞬間が好機だ。",
+        intel: "微風。まずは落ち着いて狙え。\nFOCUS中にレティクルが赤くなった瞬間が、必中のタイミングだ。",
         fail: "ターゲット逃走。初歩的なミスだ。",
         type: 'static', bg: 'day',
         windMin: 10, windMax: 20, dist: 1.0
@@ -292,7 +292,7 @@ const LEVELS = [
         id: 2,
         title: "CONTRACT #002: CROWDED LOBBY",
         target: "ターゲット：青いネクタイの男\n空港ロビーにて移動中。",
-        intel: "人混みでの狙撃。\nターゲットは動いているが、オートトラッカーが追尾する。\n風の影響だけを計算に入れろ。",
+        intel: "人混みでの狙撃。\n民間人への誤射は許されない。\nオートトラッカーが風を計算し、照準を風上に補正する。",
         fail: "一般人を巻き込んだ可能性がある。即時撤退。",
         type: 'moving', bg: 'sunset',
         windMin: 30, windMax: 50, dist: 0.8, civilians: 6
@@ -301,7 +301,7 @@ const LEVELS = [
         id: 3,
         title: "CONTRACT #003: GALE FORCE",
         target: "ターゲット：武器商人\nペントハウスの防弾ガラス越し。",
-        intel: "強風警報。\n弾道が大きく逸れる。\n手ブレの軌道が、風の補正点と重なる一瞬を見逃すな。",
+        intel: "強風警報。\n弾道が大きく逸れるが、スコープの自動補正を信じろ。\n補正しきれない「残りわずかなズレ」を手ブレで合わせろ。",
         fail: "ガラスに弾かれた。チャンスは失われた。",
         type: 'glass', bg: 'night',
         windMin: 80, windMax: 120, dist: 0.7
@@ -310,7 +310,7 @@ const LEVELS = [
         id: 4,
         title: "CONTRACT #004: RICOCHET",
         target: "ターゲット：敵対スナイパー\n壁の死角に潜んでいる。",
-        intel: "直射不可能。\n左側の金属プレートへの「跳弾」を利用せよ。\n風を読み、プレートの中心を射抜け。",
+        intel: "直射不可能。\n左側の金属プレートへの「跳弾」を利用せよ。\nシステムは自動的に反射板の中心をロックオンする。",
         fail: "角度計算を誤った。反撃を受けるぞ。",
         type: 'ricochet', bg: 'day',
         windMin: 20, windMax: 60, dist: 0.6
@@ -335,20 +335,24 @@ const STATE = { BRIEFING: 0, PLAYING: 1, IMPACT: 2, RESULT: 3, ALL_CLEAR: 4 };
 let currentState = STATE.BRIEFING;
 let currentLevel = 0;
 let levelData = null;
+let isRetry = false; // 高速リトライ用フラグ
 
 // World Objects
 let targets = [];
 let obstacles = [];
 let reflector = null;
+let tracers = []; // 弾道描画用
 
 // Physics & Player
-let wind = { x: 0, y: 0, power: 0 }; // 風ベクトル
-let camera = { x: 0, y: 0 };         // 現在のスコープ中心（ワールド座標）
-let sway = { x: 0, y: 0, time: 0 };  // 手ブレオフセット
+let wind = { x: 0, y: 0, power: 0 }; 
+let camera = { x: 0, y: 0 };         
+let sway = { x: 0, y: 0, time: 0 };  
+let aimLock = { active: false, x: 0, y: 0 }; // 自動補正のターゲット座標
 
 let bpm = GLOBAL.BPM_BASE;
 let isFocusing = false;
 let isPenalty = false;
+let isLockedOn = false; // レティクルを赤くするかどうか
 let lightning = 0;
 let hitResult = null;
 let impactTimer = 0;
@@ -390,14 +394,18 @@ const ui = {
             { el: document.getElementById('briefing-intel'), text: data.intel }
         ];
         
-        // Reset Text
         ui.textQueue.forEach(q => { q.el.textContent = ""; q.el.classList.remove('done'); });
         ui.briefingBtn.classList.add('disabled');
         ui.hideAll();
         ui.briefing.classList.add('active');
         currentState = STATE.BRIEFING;
         
-        ui.processTypingQueue();
+        // リトライ時は即表示
+        if (isRetry) {
+            ui.skipTyping();
+        } else {
+            ui.processTypingQueue();
+        }
     },
     
     processTypingQueue: () => {
@@ -424,25 +432,19 @@ const ui = {
                 clearInterval(ui.typingTimer);
                 if (callback) callback();
             }
-        }, 35);
+        }, 25); // 少し高速化
     },
 
     skipTyping: () => {
-        if (!ui.isTyping) return;
         clearInterval(ui.typingTimer);
-        // 現在処理中のものも含め、全キューを即表示
-        const targetEl = document.getElementById('briefing-target');
-        const intelEl = document.getElementById('briefing-intel');
-        // 現在のレベルデータ再取得は冗長だが確実
         const data = LEVELS[currentLevel >= LEVELS.length ? 0 : currentLevel];
         
-        targetEl.textContent = data.target;
-        intelEl.textContent = data.intel;
-        targetEl.classList.add('done');
-        intelEl.classList.add('done');
+        const targetEl = document.getElementById('briefing-target');
+        const intelEl = document.getElementById('briefing-intel');
+        targetEl.textContent = data.target; targetEl.classList.add('done');
+        intelEl.textContent = data.intel; intelEl.classList.add('done');
         
         ui.textQueue = [];
-        playSound('type');
         ui.finishTyping();
     },
 
@@ -461,11 +463,13 @@ const ui = {
             stamp.className = "result-stamp stamp-success";
             detail.textContent = "ターゲット沈黙確認。\n報酬を送金する。";
             btn.textContent = "NEXT CONTRACT";
+            isRetry = false; // 次のレベルへ進むのでリトライフラグ解除
         } else {
             stamp.textContent = "FAILED";
             stamp.className = "result-stamp stamp-fail";
             detail.textContent = reason || "任務失敗。";
             btn.textContent = "RETRY";
+            isRetry = true; // 次回はリトライとして処理
         }
         ui.hideAll();
         ui.result.classList.add('active');
@@ -479,6 +483,7 @@ const ui = {
         stamp.className = "result-stamp stamp-success";
         detail.textContent = "全契約完了。\n君は完璧な仕事をした。";
         btn.textContent = "BACK TO TITLE";
+        isRetry = false;
         ui.hideAll();
         ui.result.classList.add('active');
         currentState = STATE.ALL_CLEAR;
@@ -523,7 +528,6 @@ const endFocus = (e) => {
 const handleFire = (e) => {
     e.preventDefault();
     if (currentState === STATE.PLAYING) {
-        // Simple animation
         btnFire.style.transform = "scale(0.9)";
         setTimeout(() => btnFire.style.transform = "scale(1)", 100);
         fireShot();
@@ -538,7 +542,6 @@ document.addEventListener('keyup', e => {
     if (e.code === 'Space') endFocus(e);
 });
 document.addEventListener('mousedown', e => {
-    // Only fire if clicking on canvas area (PC)
     if (e.target.id === 'gameCanvas' && currentState === STATE.PLAYING) fireShot();
 });
 
@@ -563,9 +566,9 @@ document.getElementById('briefing-box').addEventListener('click', (e) => {
     }
 });
 document.getElementById('result-btn').addEventListener('click', () => {
-    if (currentState === STATE.ALL_CLEAR) { currentLevel = 0; ui.showBriefing(0); }
+    if (currentState === STATE.ALL_CLEAR) { currentLevel = 0; isRetry=false; ui.showBriefing(0); }
     else if (hitResult && hitResult.success) { currentLevel++; ui.showBriefing(currentLevel); }
-    else { initLevel(currentLevel); }
+    else { ui.showBriefing(currentLevel); } // リトライでもブリーフィング（スキップ済み）を出す
 });
 
 // ==========================================
@@ -581,14 +584,15 @@ function initLevel(idx) {
     bpm = GLOBAL.BPM_BASE;
     isFocusing = false;
     isPenalty = false;
+    isLockedOn = false;
     sway = { x: 0, y: 0, time: 0 };
     camera = { x: 0, y: 0 };
     lightning = 0;
+    tracers = [];
     
     // Wind Generation
     const angle = Math.random() * Math.PI * 2;
     const power = levelData.windMin + Math.random() * (levelData.windMax - levelData.windMin);
-    // windベクトル = 弾が1フレーム(瞬間)で流される量 * 係数
     wind = { 
         x: Math.cos(angle) * power, 
         y: Math.sin(angle) * power, 
@@ -600,9 +604,18 @@ function initLevel(idx) {
     
     if (levelData.type === 'static') targets.push(createChar(0, 0, true));
     else if (levelData.type === 'moving') {
-        targets.push(createChar(0, 0, true)); // Target moves
+        targets.push(createChar(0, 0, true)); 
+        // 民間人がターゲットに近すぎないように配置 (Fair Difficulty)
         for(let i=0; i<levelData.civilians; i++) {
-            targets.push(createChar((Math.random()-0.5)*800, (Math.random()-0.5)*400, false));
+            let cx, cy, dist;
+            let attempts = 0;
+            do {
+                cx = (Math.random()-0.5)*800;
+                cy = (Math.random()-0.5)*400;
+                dist = Math.sqrt(cx*cx + cy*cy); // Target is at 0,0 approx
+                attempts++;
+            } while (dist < 80 && attempts < 20); // 半径80px以内は避ける
+            targets.push(createChar(cx, cy, false));
         }
     }
     else if (levelData.type === 'glass') {
@@ -632,6 +645,7 @@ function createChar(x, y, isTarget) {
 
 let lastTime = 0;
 let lastBeat = 0;
+let pulseVal = 0; // 心拍ズーム用
 
 function gameLoop(time) {
     const dt = time - lastTime;
@@ -640,13 +654,17 @@ function gameLoop(time) {
     update(dt, time);
     draw(time);
     
-    // Heartbeat
+    // Heartbeat Logic
     if (currentState === STATE.PLAYING) {
         if (time - lastBeat > (60000 / bpm)) {
             playSound('heartbeat', isFocusing ? 1.0 : 0.0);
             lastBeat = time;
+            // FOCUS中は脈打つ
+            if (isFocusing) pulseVal = 0.05; 
         }
     }
+    // 脈動減衰
+    pulseVal *= 0.9;
 
     if (currentState !== STATE.RESULT && currentState !== STATE.ALL_CLEAR) requestAnimationFrame(gameLoop);
 }
@@ -658,8 +676,12 @@ function update(dt, time) {
             currentState = STATE.RESULT;
             ui.showResult(hitResult.success, hitResult.reason);
         }
-        return;
     }
+    
+    // Tracer fade logic (Always run)
+    tracers.forEach(t => t.alpha -= dt * 0.0005);
+    tracers = tracers.filter(t => t.alpha > 0);
+
     if (currentState !== STATE.PLAYING) return;
 
     // --- 1. BPM Logic ---
@@ -676,48 +698,62 @@ function update(dt, time) {
     }
     ui.updateHUD();
 
-    // --- 2. Auto Tracking & Sway Logic ---
-    // Target position (Main target)
-    let mainTarget = targets.find(t => t.isTarget);
-    let targetX = mainTarget ? mainTarget.x : 0;
-    let targetY = mainTarget ? mainTarget.y : 0;
+    // --- 2. Camera & Sway Logic ---
+    
+    // Determine Base Target Position (What we are trying to look at)
+    let aimX = 0, aimY = 0;
+    
+    if (levelData.type === 'ricochet' && reflector) {
+        // 跳弾ステージでは反射板の中心を狙う
+        aimX = reflector.x + reflector.w / 2;
+        aimY = reflector.y + reflector.h / 2;
+    } else {
+        // 通常はメインターゲットを狙う
+        let t = targets.find(t => t.isTarget);
+        if (t) { aimX = t.x; aimY = t.y; }
+    }
+
+    // Auto Compensation (風上への自動補正)
+    // 弾が風で流される量
+    const fullDriftX = wind.x * GLOBAL.WIND_INFLUENCE;
+    const fullDriftY = wind.y * GLOBAL.WIND_INFLUENCE;
+    
+    // カメラが自動で補正する量 (85%)
+    const compX = -fullDriftX * GLOBAL.AUTO_COMPENSATION;
+    const compY = -fullDriftY * GLOBAL.AUTO_COMPENSATION;
+    
+    // 残りのズレ (15%) - これを手ブレで合わせる必要がある
+    const remainingDriftX = fullDriftX * (1.0 - GLOBAL.AUTO_COMPENSATION);
+    const remainingDriftY = fullDriftY * (1.0 - GLOBAL.AUTO_COMPENSATION);
+    const remainingDist = Math.sqrt(remainingDriftX**2 + remainingDriftY**2);
 
     // Calculate Sway
-    // 「正解の着弾点」＝ TargetPos - WindVector (偏差射撃)
-    // Swayは「TargetPos」を中心に動くが、必ず「-WindVector」の位置を通過させたい。
-    // そのために、Swayの軌道にWind成分を周期的に相殺するバイアスを掛けるか、
-    // あるいは単純に振幅を風よりも大きくし、確率的に通過させる。
-    // ここでは「振幅 > 風速」を保証し、軌道を8の字にして通過頻度を高める。
-
     let swaySpeed = GLOBAL.SWAY_SPEED;
     let swayAmp = GLOBAL.BASE_SWAY;
     
-    // FOCUS補正
     if (isFocusing) {
         swaySpeed *= GLOBAL.FOCUS_SLOW;
-        // 振幅は小さくしすぎると、強風時に「風上」まで届かなくなる（詰む）
-        // なので、最低でも風の影響分は振幅を残す必要がある
-        const minAmp = Math.sqrt(wind.x**2 + wind.y**2) * GLOBAL.WIND_INFLUENCE * 1.2;
-        swayAmp = Math.max(minAmp, swayAmp * GLOBAL.FOCUS_STABILIZE); 
+        // 重要: 振幅が小さくなりすぎて「残りのズレ」に届かなくならないよう保証する
+        // 少なくとも remainingDist + 余裕分 は振幅が必要
+        const minAmp = remainingDist + 20; 
+        swayAmp = Math.max(minAmp, swayAmp * GLOBAL.FOCUS_STABILIZE);
     }
     if (isPenalty) { swaySpeed *= 2.0; swayAmp *= 3.0; }
     
-    // BPM Stress
     const stress = Math.max(0, (bpm - GLOBAL.BPM_BASE) / 50);
     swaySpeed *= (1 + stress);
     swayAmp *= (1 + stress * 0.5);
 
     sway.time += dt * swaySpeed;
 
-    // Lissajous Curve (8-figure)
-    // ターゲットを中心に揺れる
+    // Lissajous Curve
     sway.x = Math.sin(sway.time) * swayAmp;
-    sway.y = Math.sin(sway.time * 2) * (swayAmp * 0.5);
+    sway.y = Math.sin(sway.time * 2.1) * (swayAmp * 0.5); // 周期を少しずらして複雑に
 
-    // Camera Position (Look At)
-    // プレイヤーはターゲットを追尾しているが、手ブレ(Sway)がある
-    camera.x = targetX + sway.x;
-    camera.y = targetY + sway.y;
+    // Camera Final Position
+    // Base Target + Wind Compensation + Hand Sway
+    camera.x = aimX + compX + sway.x;
+    camera.y = aimY + compY + sway.y;
 
     // --- 3. Object Updates ---
     targets.forEach(t => {
@@ -736,21 +772,60 @@ function update(dt, time) {
         if (lightning > 0) lightning -= 0.05;
         if (Math.random() < 0.005) { lightning = 1.0; playSound('thunder'); }
     }
+
+    // --- 4. Hit Forecast (Visual Feedback) ---
+    // 現在の状態で撃ったら当たるか？を判定
+    isLockedOn = checkHitForecast();
+}
+
+// 予測用の簡易ヒット判定
+function checkHitForecast() {
+    if (!isFocusing) return false;
+
+    const driftX = wind.x * GLOBAL.WIND_INFLUENCE;
+    const driftY = wind.y * GLOBAL.WIND_INFLUENCE;
+    const impactX = camera.x + driftX;
+    const impactY = camera.y + driftY;
+
+    // 障害物チェック
+    for (let o of obstacles) {
+        if (impactX > o.x && impactX < o.x + o.w && impactY > o.y && impactY < o.y + o.h) return false;
+    }
+
+    // リコシェターゲット判定
+    if (levelData.type === 'ricochet' && reflector) {
+         if (impactX > reflector.x && impactX < reflector.x + reflector.w && 
+            impactY > reflector.y && impactY < reflector.y + reflector.h) return true;
+         return false;
+    }
+
+    // 通常ターゲット判定
+    const r = GLOBAL.HIT_RADIUS * levelData.dist;
+    for (let t of targets) {
+        if (t.isTarget) {
+            let dist = Math.sqrt((impactX - t.x)**2 + (impactY - t.y)**2);
+            if (dist < r) return true;
+        }
+    }
+    return false;
 }
 
 function fireShot() {
     playSound('gunshot');
-    setTimeout(() => playSound('shell'), 800); // 排莢音
+    setTimeout(() => playSound('shell'), 800); 
 
-    // --- Ballistics Calculation ---
-    // 弾丸着弾地点(World Coords) = 現在のカメラ位置(Scope Center) + 風の影響
-    // Wind Influence: wind.x * coefficient
-    
     const driftX = wind.x * GLOBAL.WIND_INFLUENCE;
     const driftY = wind.y * GLOBAL.WIND_INFLUENCE;
     
     const impactX = camera.x + driftX;
     const impactY = camera.y + driftY;
+
+    // 弾道記録 (Tracer)
+    tracers.push({
+        sx: camera.x, sy: camera.y, // Scope center
+        ex: impactX, ey: impactY,   // Actual hit
+        alpha: 1.0
+    });
 
     let success = false, reason = "", hitSomething = false;
 
@@ -765,13 +840,12 @@ function fireShot() {
         }
     }
 
-    // 2. Reflector (Ricochet)
+    // 2. Reflector
     if (!hitSomething && reflector) {
         if (impactX > reflector.x && impactX < reflector.x + reflector.w && 
             impactY > reflector.y && impactY < reflector.y + reflector.h) {
             
             hitSomething = true; playSound('ricochet');
-            // 跳弾成功 = ターゲット命中とする（簡易ロジック）
             let t = targets.find(t => t.isTarget);
             hitResult = { success: true, x: impactX, y: impactY, ricochet: {x: t.x, y: t.y} };
             success = true;
@@ -792,7 +866,7 @@ function fireShot() {
         }
     }
 
-    if (!hitSomething && !success) reason = "ターゲットを外した。風読みが甘い。";
+    if (!hitSomething && !success) reason = "ターゲットを外した。タイミングが悪い。";
     
     if (!hitResult) hitResult = { success: success, reason: reason, x: impactX, y: impactY };
 
@@ -816,7 +890,7 @@ function draw(time) {
     else if (levelData.bg === 'sunset') brightness = 0.6;
     if (lightning > 0) brightness = 1.5;
 
-    // Kill Effect (Monochrome + Stop)
+    // Kill Effect
     if (currentState === STATE.IMPACT && hitResult.success) {
         ctx.filter = 'grayscale(100%) contrast(150%)';
         brightness *= 1.5;
@@ -827,9 +901,9 @@ function draw(time) {
     ctx.save();
 
     // --- Camera Transform ---
-    // 画面中央に Scope Center (camera.x, camera.y) が来るように描画
-    // Zoom
-    let zoom = isFocusing ? 3.5 : 1.2; // 通常時も少しズーム
+    // Zoom with Heartbeat Pulse
+    let zoom = isFocusing ? 3.5 : 1.2; 
+    zoom += pulseVal; // Add heartbeat pulse
     if (isPenalty) zoom += Math.sin(time*0.1)*0.1;
     
     const cx = canvas.width/2;
@@ -842,13 +916,14 @@ function draw(time) {
     drawSky(brightness);
     drawBackground(brightness);
     drawObjects(time, brightness);
+    drawTracers();
     
     if (hitResult) drawHitMarker();
 
     ctx.restore();
 
     // --- Overlays ---
-    ctx.filter = 'none'; // UIはフィルタかけない
+    ctx.filter = 'none';
     if (levelData.bg === 'storm') drawRain(time);
     
     drawScope(cx, cy);
@@ -871,7 +946,6 @@ function drawSky(b) {
 }
 
 function drawBackground(b) {
-    // Simple City
     drawBuilding(-400, -500, 800, 1200, b, 60);
     drawBuilding(-900, -300, 400, 1000, b*0.8, 40);
     drawBuilding(500, -400, 500, 1100, b*0.8, 50);
@@ -887,23 +961,19 @@ function drawBuilding(x, y, w, h, b, win) {
 }
 
 function drawObjects(time, b) {
-    // Targets
     targets.forEach(t => {
         ctx.save(); ctx.translate(t.x, t.y); ctx.scale(levelData.dist, levelData.dist);
         
-        // Target Highlight (Backlight)
         if(t.isTarget && levelData.type !== 'moving') {
             ctx.fillStyle = `rgba(255,200,100,${b*0.6})`;
             ctx.shadowBlur=30; ctx.shadowColor='orange';
             ctx.fillRect(-25,-40,50,100); ctx.shadowBlur=0;
         }
         
-        // Body
         ctx.fillStyle = `rgba(5,5,5,${b})`;
         ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
         ctx.fillRect(-12,12,24,40);
         
-        // Tie
         if(t.hasTie) {
             ctx.fillStyle = `rgba(50,100,255,${b*1.5})`;
             ctx.beginPath(); ctx.moveTo(0,14); ctx.lineTo(4,35); ctx.lineTo(0,40); ctx.lineTo(-4,35); ctx.fill();
@@ -911,7 +981,6 @@ function drawObjects(time, b) {
         ctx.restore();
     });
 
-    // Obstacles
     obstacles.forEach(o => {
         if(o.type==='glass') {
             const g=ctx.createLinearGradient(o.x,o.y,o.x+o.w,o.y+o.h);
@@ -927,6 +996,17 @@ function drawObjects(time, b) {
         ctx.fillStyle='#888'; ctx.fillRect(reflector.x,reflector.y,reflector.w,reflector.h);
         ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillRect(reflector.x+2,reflector.y,5,reflector.h);
     }
+}
+
+function drawTracers() {
+    ctx.lineWidth = 1;
+    tracers.forEach(t => {
+        ctx.strokeStyle = `rgba(255, 200, 100, ${t.alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(t.sx, t.sy);
+        ctx.lineTo(t.ex, t.ey);
+        ctx.stroke();
+    });
 }
 
 function drawHitMarker() {
@@ -968,10 +1048,18 @@ function drawScope(cx, cy) {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     
     // Reticle (Mildots)
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    // Locked On ? RED : BLACK
+    ctx.strokeStyle = isLockedOn ? '#f22' : '#000'; 
+    ctx.lineWidth = 1.5;
+    if (isLockedOn) {
+         ctx.shadowBlur = 10; ctx.shadowColor = '#f00';
+    } else {
+         ctx.shadowBlur = 0;
+    }
+
     ctx.beginPath(); ctx.moveTo(cx-r,cy); ctx.lineTo(cx+r,cy); ctx.moveTo(cx,cy-r); ctx.lineTo(cx,cy+r); ctx.stroke();
     
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = isLockedOn ? '#f22' : '#000';
     const dotGap = r / 6;
     for(let i=1; i<=4; i++) {
         // H
@@ -981,6 +1069,7 @@ function drawScope(cx, cy) {
         ctx.beginPath(); ctx.arc(cx,cy+i*dotGap,2,0,Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(cx,cy-i*dotGap,2,0,Math.PI*2); ctx.fill();
     }
+    ctx.shadowBlur = 0; // reset
 
     // Wind Indicator
     const wx = cx + r*0.65, wy = cy + r*0.65;
@@ -995,7 +1084,7 @@ function drawScope(cx, cy) {
     const windAngle = Math.atan2(wind.y, wind.x);
     ctx.rotate(windAngle);
     ctx.beginPath(); ctx.moveTo(-15,0); ctx.lineTo(15,0); ctx.lineTo(10,-5); ctx.moveTo(15,0); ctx.lineTo(10,5); ctx.stroke();
-    ctx.rotate(-windAngle); // reset rot
+    ctx.rotate(-windAngle); 
     
     ctx.fillStyle = '#4f4'; ctx.font = '10px Courier New'; ctx.textAlign = 'center';
     ctx.fillText("WIND", 0, -35);
@@ -1016,19 +1105,18 @@ function playSound(type, vol=1.0) {
     const osc = ac.createOscillator();
     const g = ac.createGain();
     
-    if(type==='type') { // Keyboard clack
+    if(type==='type') { 
         osc.type = 'square'; osc.frequency.value = 800+Math.random()*400;
         g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.05);
         osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+0.05);
     }
-    else if(type==='heartbeat') { // Low thud
+    else if(type==='heartbeat') { 
         osc.frequency.setValueAtTime(60, t); osc.frequency.exponentialRampToValueAtTime(30, t+0.1);
         g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol*1.5, t+0.05); g.gain.exponentialRampToValueAtTime(0.001, t+0.4);
         const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=120;
         osc.connect(f); f.connect(g); g.connect(ac.destination);
         osc.start(t); osc.stop(t+0.5);
         
-        // Secondary beat
         setTimeout(()=>{
             const o2=ac.createOscillator(); const g2=ac.createGain(); const f2=ac.createBiquadFilter(); f2.type='lowpass'; f2.frequency.value=120;
             o2.frequency.setValueAtTime(50, ac.currentTime); o2.frequency.exponentialRampToValueAtTime(30, ac.currentTime+0.1);
@@ -1044,12 +1132,11 @@ function playSound(type, vol=1.0) {
         g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.01,t+0.5);
         src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
     }
-    else if(type==='shell') { // Brass drop
+    else if(type==='shell') { 
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(1200, t); osc.frequency.exponentialRampToValueAtTime(600, t+0.1);
         g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.2);
         osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+0.2);
-        // bounce
         setTimeout(()=>{
             const o2=ac.createOscillator(); o2.type='triangle'; const g2=ac.createGain();
             o2.frequency.setValueAtTime(1000, ac.currentTime); 
@@ -1057,10 +1144,18 @@ function playSound(type, vol=1.0) {
             o2.connect(g2); g2.connect(ac.destination); o2.start(ac.currentTime); o2.stop(ac.currentTime+0.1);
         }, 150);
     }
-    else if(type==='impact') { // Hit sound
+    else if(type==='impact') { 
         osc.frequency.setValueAtTime(100, t); osc.frequency.exponentialRampToValueAtTime(20, t+1);
         g.gain.setValueAtTime(0.8, t); g.gain.linearRampToValueAtTime(0, t+1);
         osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+1.5);
+    }
+    else if(type==='miss') { 
+        const buf = ac.createBuffer(1, ac.sampleRate*0.5, ac.sampleRate);
+        const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+        const src = ac.createBufferSource(); src.buffer = buf;
+        const f = ac.createBiquadFilter(); f.type='highpass'; f.frequency.value=1000;
+        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.3);
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
     }
     else if(type==='gasp') {
         const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
