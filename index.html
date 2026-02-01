@@ -296,10 +296,8 @@
 <script>
 /**
  * THE CONTRACT - PROFESSIONAL SNIPER SIM (PRO EDITION)
- * v3.0 Updates:
- * - Difficulty Rebalance: "Pro Feel" (More stable focus, better auto-comp)
- * - Stage Selection: Play any mission directly
- * - High Score System: Tracks Time & Accuracy using LocalStorage
+ * v3.1 Updates:
+ * - Bugfix: Fixed TypeError when calculating stats on ricochet/special hits.
  */
 
 // ==========================================
@@ -575,9 +573,11 @@ const ui = {
             stamp.className = "result-stamp stamp-success";
             
             // New Record Check
-            const isNewRecord = saveScore(levelData.id, stats.time, stats.acc);
+            // 安全策: statsが未定義の場合のガード
+            const s = stats || { time: 0, acc: 0 };
+            const isNewRecord = saveScore(levelData.id, s.time, s.acc);
             
-            let msg = `TIME: ${stats.time.toFixed(2)}s\nACCURACY: ${stats.acc.toFixed(1)}%\n`;
+            let msg = `TIME: ${s.time.toFixed(2)}s\nACCURACY: ${s.acc.toFixed(1)}%\n`;
             if (isNewRecord) msg += "\n>> NEW RECORD <<";
             else msg += "\nターゲット沈黙確認。";
             
@@ -1049,7 +1049,11 @@ function fireShot() {
         stats = { time: timeElapsed, acc: accuracy };
     }
 
-    if (!hitResult) hitResult = { success: success, reason: reason, x: impactX, y: impactY, stats: stats };
+    if (!hitResult) {
+        hitResult = { success: success, reason: reason, x: impactX, y: impactY, stats: stats };
+    } else {
+        hitResult.stats = stats;
+    }
 
     // Impact
     currentState = STATE.IMPACT;
