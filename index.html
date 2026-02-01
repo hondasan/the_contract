@@ -3,31 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>THE CONTRACT - 最後の仕事 (Lv1 Fix) -</title>
+    <title>THE CONTRACT - PROFESSIONAL -</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
         body, html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #000;
-            font-family: 'Courier New', Courier, monospace;
+            background-color: #050505;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: none; /* スクロール・ズーム無効化 */
+            touch-action: none;
+            color: #ccc;
         }
         canvas {
             display: block;
             cursor: none;
             touch-action: none;
         }
+        
+        #noise-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            opacity: 0.4;
+            z-index: 5;
+        }
+
         #ui-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none;
             display: flex;
             justify-content: center;
@@ -36,250 +46,318 @@
             text-shadow: 0 0 5px rgba(0,0,0,0.8);
             z-index: 20;
         }
+
+        /* 依頼書 */
         .message-box {
-            background: rgba(10, 10, 15, 0.9);
-            border: 1px solid #4af;
-            box-shadow: 0 0 20px rgba(0, 100, 255, 0.2);
-            padding: 20px;
-            text-align: center;
-            max-width: 80%;
+            background: #080808;
+            border: 1px solid #333;
+            border-left: 4px solid #d22;
+            padding: 30px;
+            width: 85%;
+            max-width: 650px;
             display: none;
             pointer-events: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+            position: relative;
+            cursor: pointer;
         }
-        .message-box.active {
-            display: block;
+        .message-box::before {
+            content: "CLASSIFIED // EYES ONLY";
+            position: absolute;
+            top: -12px; right: 10px;
+            background: #d22;
+            color: #000;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            font-weight: bold;
+            letter-spacing: 2px;
         }
+        .message-box.active { display: block; animation: slideIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
         h1 {
-            color: #fff;
-            margin: 0 0 10px 0;
-            font-size: 1.5rem;
+            color: #eee;
+            margin: 0 0 20px 0;
+            font-size: 2rem;
             letter-spacing: 0.1em;
-            border-bottom: 2px solid #4af;
-            display: inline-block;
-            padding-bottom: 5px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+            text-transform: uppercase;
         }
         h2 {
-            color: #4af;
-            margin: 10px 0 15px 0;
-            font-size: 1rem;
+            color: #888;
+            margin: 15px 0 5px 0;
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
         }
-        p {
+        .mission-detail {
             color: #ccc;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            margin-bottom: 15px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            min-height: 3em;
+            font-weight: normal;
         }
+        
+        .typing::after {
+            content: "_";
+            color: #d22;
+            animation: blink 0.1s step-end infinite;
+        }
+        .typing.done::after { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+
         .btn {
             display: inline-block;
-            background: rgba(0, 50, 100, 0.5);
-            border: 1px solid #4af;
-            padding: 10px 30px;
-            color: #fff;
+            background: #111;
+            border: 1px solid #444;
+            padding: 15px 50px;
+            color: #666;
             cursor: pointer;
             transition: all 0.2s;
-            font-weight: bold;
             font-size: 1rem;
+            letter-spacing: 0.2em;
+            margin-top: 15px;
+            text-transform: uppercase;
         }
-        .btn:hover, .btn:active {
-            background: #4af;
-            color: #000;
-            box-shadow: 0 0 15px #4af;
-        }
-        #level-indicator {
+        .btn:hover { background: #d22; color: #fff; border-color: #d22; }
+        .btn.disabled { opacity: 0.3; pointer-events: none; }
+
+        /* HUD */
+        .hud-info {
             position: absolute;
-            top: 15px;
-            left: 15px;
-            color: #0f0;
-            font-size: 1rem;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
             font-weight: bold;
-            z-index: 10;
-            text-shadow: 0 0 5px #0f0;
+            pointer-events: none;
+            letter-spacing: 1px;
         }
-        
-        /* モバイル用コントロール */
+        #bpm-display {
+            /* 修正: 操作ボタンと被らないよう上部に移動 */
+            top: 30px; 
+            right: 40px;
+            text-align: right;
+        }
+        #bpm-value { font-size: 3rem; color: #ccc; font-family: 'Courier New', monospace; }
+        .bpm-danger #bpm-value { color: #f44; animation: shake 0.2s infinite; }
+        @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(1px,1px); } 75% { transform: translate(-1px,-1px); } }
+
+        #wind-display {
+            /* 修正: 操作ボタンと被らないよう上部に移動 */
+            top: 30px; 
+            left: 40px;
+            text-align: left;
+        }
+        #wind-value { font-size: 1.5rem; color: #8c8; }
+
+        /* Controls */
         #mobile-controls {
             position: absolute;
-            bottom: 20px;
-            left: 0;
-            width: 100%;
-            height: 100px;
+            bottom: 30px; left: 0; width: 100%; height: 120px;
             pointer-events: none;
             z-index: 30;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 30px;
-            box-sizing: border-box;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 40px; box-sizing: border-box;
         }
         .control-btn {
-            width: 80px;
-            height: 80px;
+            width: 100px; height: 100px;
             border-radius: 50%;
-            background: rgba(0, 255, 255, 0.1);
-            border: 2px solid rgba(0, 255, 255, 0.5);
-            color: rgba(0, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 0.9rem;
+            border: 2px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.5);
+            color: rgba(255,255,255,0.4);
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1rem; letter-spacing: 2px;
             pointer-events: auto;
-            user-select: none;
-            backdrop-filter: blur(2px);
-            transition: background 0.1s, transform 0.1s;
+            backdrop-filter: blur(5px);
+            transition: 0.1s;
         }
-        .control-btn:active, .control-btn.pressed {
-            background: rgba(0, 255, 255, 0.4);
+        #btn-focus.active {
+            border-color: #4ff; color: #4ff;
+            background: rgba(0,255,255,0.1);
+            box-shadow: 0 0 20px rgba(0,255,255,0.2);
+        }
+        #btn-fire { border-color: rgba(255,50,50,0.3); color: rgba(255,100,100,0.8); }
+        #btn-fire:active {
+            background: rgba(255,0,0,0.3); color: #fff;
             transform: scale(0.95);
-            color: #fff;
-        }
-        .fire-btn {
-            border-color: rgba(255, 50, 50, 0.6);
-            color: rgba(255, 50, 50, 0.8);
-            background: rgba(255, 50, 50, 0.1);
-        }
-        .fire-btn:active {
-            background: rgba(255, 50, 50, 0.5);
+            box-shadow: 0 0 30px rgba(255,0,0,0.5);
         }
 
-        .blink { animation: blinker 2s ease-in-out infinite; }
-        @keyframes blinker { 50% { opacity: 0.5; } }
+        /* Result Stamp */
+        .result-stamp {
+            font-size: 4rem; font-weight: bold;
+            transform: rotate(-15deg);
+            border: 8px solid; padding: 10px 40px;
+            display: inline-block; margin-bottom: 30px;
+            opacity: 0;
+            text-transform: uppercase;
+            animation: stampIn 0.2s cubic-bezier(0.5, 0, 0.5, 1.5) forwards 0.5s;
+        }
+        @keyframes stampIn { from { opacity: 0; transform: scale(3) rotate(-15deg); } to { opacity: 1; transform: scale(1) rotate(-15deg); } }
+        .stamp-success { color: #d22; border-color: #d22; text-shadow: 0 0 20px rgba(221, 34, 34, 0.5); }
+        .stamp-fail { color: #888; border-color: #888; }
         
-        .result-text { font-size: 2rem; font-weight: bold; margin-bottom: 15px; }
-        .win { color: #4ff; text-shadow: 0 0 20px #0ff; }
-        .lose { color: #f44; text-shadow: 0 0 20px #f00; }
+        .hint-text {
+            color: #666; font-size: 0.8rem; margin-top: 10px;
+        }
     </style>
 </head>
 <body>
 
 <canvas id="gameCanvas"></canvas>
-<div id="level-indicator">Initializing...</div>
+<div id="noise-overlay"></div>
 
 <div id="ui-layer">
     <!-- ブリーフィング -->
     <div id="briefing-box" class="message-box">
-        <h1 id="briefing-title">MISSION 1</h1>
-        <h2 id="briefing-subtitle">TARGET: UNKNOWN</h2>
-        <p id="briefing-text">...</p>
-        <div class="btn blink" id="briefing-btn">ACCEPT MISSION</div>
+        <h1 id="briefing-title">CONTRACT #000</h1>
+        <div id="briefing-content">
+            <h2>TARGET</h2>
+            <div class="mission-detail typing" id="briefing-target"></div>
+            <h2>INTEL</h2>
+            <div class="mission-detail typing" id="briefing-intel"></div>
+        </div>
+        <div class="hint-text">※ 弾は風に流されます。風上へのズレを狙ってください。</div>
+        <div class="btn disabled" id="briefing-btn">ACCEPT</div>
     </div>
 
     <!-- リザルト -->
     <div id="result-box" class="message-box">
-        <div id="result-msg" class="result-text"></div>
-        <p id="result-detail"></p>
-        <div class="btn blink" id="result-btn">NEXT</div>
+        <div id="result-stamp" class="result-stamp">ELIMINATED</div>
+        <div class="mission-detail" id="result-detail"></div>
+        <div class="btn" id="result-btn">PROCEED</div>
     </div>
 </div>
 
-<!-- モバイル用操作ボタン -->
+<!-- HUD -->
+<div id="bpm-display" class="hud-info">
+    <span>BPM </span><span id="bpm-value">60</span>
+</div>
+<div id="wind-display" class="hud-info">
+    <span>WIND </span><span id="wind-value">0.0 m/s</span>
+</div>
+
+<!-- 操作ボタン -->
 <div id="mobile-controls">
     <div id="btn-focus" class="control-btn">FOCUS</div>
-    <div id="btn-fire" class="control-btn fire-btn">FIRE</div>
+    <div id="btn-fire" class="control-btn">FIRE</div>
 </div>
 
 <script>
 /**
- * THE CONTRACT - Lv1 Fix -
+ * THE CONTRACT - PROFESSIONAL SNIPER SIM -
+ * * Core Mechanics:
+ * - Auto Tracking: Scope follows target automatically.
+ * - Deflection: Bullets drift with wind. Hit Pos = Scope Pos + Wind Vector.
+ * - Sway: Scope moves in a pattern. Player must shoot when Sway compensates for Wind.
  */
 
 // ==========================================
-// 1. 設定とステージ定義
+// 1. CONFIGURATION
 // ==========================================
 
 const GLOBAL = {
-    SWAY_BASE: 60,
-    SWAY_SPEED: 0.002,
-    FOCUS_ZOOM: 2.5,
-    FOCUS_TIME: 3000,
-    RECOVERY: 0.5,
-    HIT_RADIUS: 12,
+    // 物理定数
+    BASE_SWAY: 120,        // 手ブレの基本振幅
+    SWAY_SPEED: 0.0015,    // 手ブレ速度
+    WIND_INFLUENCE: 2.0,   // 風速1m/sあたりの着弾ズレ(px)
+    
+    // FOCUS補正
+    FOCUS_SLOW: 0.1,       // 時間経過がどれだけ遅くなるか
+    FOCUS_STABILIZE: 0.6,  // 振幅がどれだけ収まるか (風より小さくなると当たらないので下げすぎ注意)
+    
+    // BPM
+    BPM_BASE: 60,
+    BPM_MAX: 180,
+    BPM_LIMIT: 130,
+    BPM_RISE: 30,
+    BPM_RECOVER: 15,
+    
+    HIT_RADIUS: 18,        // 命中判定半径
 };
 
 const LEVELS = [
     {
         id: 1,
-        title: "LEVEL 1: ROOKIE",
-        subtitle: "ビルの谷間",
-        desc: "ターゲットはビルの窓際にいる。<br>「明かりがついている窓」を探せ。<br>風と手ブレを計算して狙撃せよ。<br><br>※画面ドラッグで照準移動",
-        type: 'normal',
-        bgType: 'day',
-        windMin: 10, windMax: 40,
-        swayScale: 1.0, distScale: 1.0
+        title: "CONTRACT #001: THE WATCHER",
+        target: "ターゲット：監視員\nビルの屋上で静止している。",
+        intel: "微風。偏差射撃の基本を確認せよ。\n弾は風に流される。\nスコープが「風上」にズレた瞬間が好機だ。",
+        fail: "ターゲット逃走。初歩的なミスだ。",
+        type: 'static', bg: 'day',
+        windMin: 10, windMax: 20, dist: 1.0
     },
     {
         id: 2,
-        title: "LEVEL 2: CROWD",
-        subtitle: "群衆の影",
-        desc: "空港ロビー。<br>「青いネクタイ」の男を狙え。<br>一般市民を巻き込むな。",
-        type: 'crowd',
-        bgType: 'sunset',
-        windMin: 30, windMax: 80,
-        swayScale: 1.0, distScale: 0.8,
-        civilianCount: 6
+        title: "CONTRACT #002: CROWDED LOBBY",
+        target: "ターゲット：青いネクタイの男\n空港ロビーにて移動中。",
+        intel: "人混みでの狙撃。\nターゲットは動いているが、オートトラッカーが追尾する。\n風の影響だけを計算に入れろ。",
+        fail: "一般人を巻き込んだ可能性がある。即時撤退。",
+        type: 'moving', bg: 'sunset',
+        windMin: 30, windMax: 50, dist: 0.8, civilians: 6
     },
     {
         id: 3,
-        title: "LEVEL 3: GLASS",
-        subtitle: "特殊防弾ガラス",
-        desc: "防弾ガラスの奥にターゲットを確認。<br>ガラスの隙間が開く一瞬を狙え。",
-        type: 'glass',
-        bgType: 'sunset',
-        windMin: 50, windMax: 100,
-        swayScale: 1.2, distScale: 0.7,
-        glassSpeed: 2.0
+        title: "CONTRACT #003: GALE FORCE",
+        target: "ターゲット：武器商人\nペントハウスの防弾ガラス越し。",
+        intel: "強風警報。\n弾道が大きく逸れる。\n手ブレの軌道が、風の補正点と重なる一瞬を見逃すな。",
+        fail: "ガラスに弾かれた。チャンスは失われた。",
+        type: 'glass', bg: 'night',
+        windMin: 80, windMax: 120, dist: 0.7
     },
     {
         id: 4,
-        title: "LEVEL 4: RICOCHET",
-        subtitle: "跳弾の美学",
-        desc: "死角に潜むターゲット。<br>「金属プレート」を利用し、跳弾で仕留めろ。",
-        type: 'ricochet',
-        bgType: 'day',
-        windMin: 20, windMax: 60,
-        swayScale: 1.0, distScale: 0.6
+        title: "CONTRACT #004: RICOCHET",
+        target: "ターゲット：敵対スナイパー\n壁の死角に潜んでいる。",
+        intel: "直射不可能。\n左側の金属プレートへの「跳弾」を利用せよ。\n風を読み、プレートの中心を射抜け。",
+        fail: "角度計算を誤った。反撃を受けるぞ。",
+        type: 'ricochet', bg: 'day',
+        windMin: 20, windMax: 60, dist: 0.6
     },
     {
         id: 5,
-        title: "LEVEL 5: STORM",
-        subtitle: "神の領域",
-        desc: "嵐の洋上。視界不良。<br>揺れと雷光を読み、一撃必中を狙え。",
-        type: 'storm',
-        bgType: 'storm',
-        windMin: 150, windMax: 250,
-        swayScale: 2.5, distScale: 0.5
+        title: "CONTRACT #005: ZERO POINT",
+        target: "ターゲット：コードネーム「ゼロ」\n洋上プラットフォーム。",
+        intel: "暴風雨。\n視界不良、極限の環境。\n心拍を制御し、嵐の隙間を縫って撃て。",
+        fail: "自然の猛威に敗北した。",
+        type: 'storm', bg: 'storm',
+        windMin: 150, windMax: 250, dist: 0.5
     }
 ];
 
 // ==========================================
-// 2. ゲーム状態
+// 2. STATE MANAGEMENT
 // ==========================================
 
-const STATE = { BRIEFING: 0, PLAYING: 1, ANIMATION: 2, RESULT: 3, ALL_CLEAR: 4 };
+const STATE = { BRIEFING: 0, PLAYING: 1, IMPACT: 2, RESULT: 3, ALL_CLEAR: 4 };
 
 let currentState = STATE.BRIEFING;
-let currentLevelIdx = 0;
+let currentLevel = 0;
 let levelData = null;
 
+// World Objects
 let targets = [];
 let obstacles = [];
 let reflector = null;
-let worldOffset = { x:0, y:0 };
+
+// Physics & Player
+let wind = { x: 0, y: 0, power: 0 }; // 風ベクトル
+let camera = { x: 0, y: 0 };         // 現在のスコープ中心（ワールド座標）
+let sway = { x: 0, y: 0, time: 0 };  // 手ブレオフセット
+
+let bpm = GLOBAL.BPM_BASE;
+let isFocusing = false;
+let isPenalty = false;
+let lightning = 0;
+let hitResult = null;
+let impactTimer = 0;
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-// マウス・スコープ座標
-let mouse = { x: window.innerWidth/2, y: window.innerHeight/2 };
-let scope = { x: window.innerWidth/2, y: window.innerHeight/2 };
-let focusGauge = GLOBAL.FOCUS_TIME;
-let isFocusing = false;
-let lastTime = 0;
-
-let wind = { x:0, y:0, power:0, angle:0 };
-let lightning = 0;
-let hitResult = null;
 
 // ==========================================
-// 3. 初期化・イベント
+// 3. INITIALIZATION & EVENTS
 // ==========================================
 
 function resize() {
@@ -292,33 +370,101 @@ resize();
 const ui = {
     briefing: document.getElementById('briefing-box'),
     result: document.getElementById('result-box'),
-    level: document.getElementById('level-indicator'),
+    bpmVal: document.getElementById('bpm-value'),
+    bpmDisplay: document.getElementById('bpm-display'),
+    windVal: document.getElementById('wind-value'),
+    briefingBtn: document.getElementById('briefing-btn'),
+    
+    // Typing Effect
+    typingTimer: null,
+    isTyping: false,
+    textQueue: [],
     
     showBriefing: (idx) => {
         if (idx >= LEVELS.length) { ui.showAllClear(); return; }
         const data = LEVELS[idx];
         document.getElementById('briefing-title').textContent = data.title;
-        document.getElementById('briefing-subtitle').textContent = data.subtitle;
-        document.getElementById('briefing-text').innerHTML = data.desc;
-        document.getElementById('briefing-btn').textContent = "ACCEPT MISSION";
+        
+        ui.textQueue = [
+            { el: document.getElementById('briefing-target'), text: data.target },
+            { el: document.getElementById('briefing-intel'), text: data.intel }
+        ];
+        
+        // Reset Text
+        ui.textQueue.forEach(q => { q.el.textContent = ""; q.el.classList.remove('done'); });
+        ui.briefingBtn.classList.add('disabled');
         ui.hideAll();
         ui.briefing.classList.add('active');
         currentState = STATE.BRIEFING;
-        ui.level.textContent = "STANDBY";
+        
+        ui.processTypingQueue();
     },
+    
+    processTypingQueue: () => {
+        if (ui.textQueue.length === 0) {
+            ui.finishTyping();
+            return;
+        }
+        const item = ui.textQueue.shift();
+        ui.typeText(item.el, item.text, () => {
+            item.el.classList.add('done');
+            setTimeout(ui.processTypingQueue, 300);
+        });
+    },
+
+    typeText: (el, text, callback) => {
+        ui.isTyping = true;
+        let i = 0;
+        clearInterval(ui.typingTimer);
+        ui.typingTimer = setInterval(() => {
+            el.textContent += text.charAt(i);
+            if (/\S/.test(text.charAt(i))) playSound('type');
+            i++;
+            if (i >= text.length) {
+                clearInterval(ui.typingTimer);
+                if (callback) callback();
+            }
+        }, 35);
+    },
+
+    skipTyping: () => {
+        if (!ui.isTyping) return;
+        clearInterval(ui.typingTimer);
+        // 現在処理中のものも含め、全キューを即表示
+        const targetEl = document.getElementById('briefing-target');
+        const intelEl = document.getElementById('briefing-intel');
+        // 現在のレベルデータ再取得は冗長だが確実
+        const data = LEVELS[currentLevel >= LEVELS.length ? 0 : currentLevel];
+        
+        targetEl.textContent = data.target;
+        intelEl.textContent = data.intel;
+        targetEl.classList.add('done');
+        intelEl.classList.add('done');
+        
+        ui.textQueue = [];
+        playSound('type');
+        ui.finishTyping();
+    },
+
+    finishTyping: () => {
+        ui.isTyping = false;
+        ui.briefingBtn.classList.remove('disabled');
+    },
+
     showResult: (success, reason) => {
-        const title = document.getElementById('result-msg');
+        const stamp = document.getElementById('result-stamp');
         const detail = document.getElementById('result-detail');
         const btn = document.getElementById('result-btn');
+        
         if (success) {
-            title.textContent = "MISSION ACCOMPLISHED";
-            title.className = "result-text win";
-            detail.textContent = "ターゲット排除確認。";
-            btn.textContent = "NEXT MISSION";
+            stamp.textContent = "ELIMINATED";
+            stamp.className = "result-stamp stamp-success";
+            detail.textContent = "ターゲット沈黙確認。\n報酬を送金する。";
+            btn.textContent = "NEXT CONTRACT";
         } else {
-            title.textContent = "MISSION FAILED";
-            title.className = "result-text lose";
-            detail.textContent = reason || "ターゲットを逃した...";
+            stamp.textContent = "FAILED";
+            stamp.className = "result-stamp stamp-fail";
+            detail.textContent = reason || "任務失敗。";
             btn.textContent = "RETRY";
         }
         ui.hideAll();
@@ -326,12 +472,12 @@ const ui = {
         currentState = STATE.RESULT;
     },
     showAllClear: () => {
-        const title = document.getElementById('result-msg');
+        const stamp = document.getElementById('result-stamp');
         const detail = document.getElementById('result-detail');
         const btn = document.getElementById('result-btn');
-        title.textContent = "THE LEGEND";
-        title.className = "result-text win";
-        detail.textContent = "全ミッション完了。";
+        stamp.textContent = "LEGEND";
+        stamp.className = "result-stamp stamp-success";
+        detail.textContent = "全契約完了。\n君は完璧な仕事をした。";
         btn.textContent = "BACK TO TITLE";
         ui.hideAll();
         ui.result.classList.add('active');
@@ -340,164 +486,136 @@ const ui = {
     hideAll: () => {
         ui.briefing.classList.remove('active');
         ui.result.classList.remove('active');
+        clearInterval(ui.typingTimer);
+        ui.isTyping = false;
+    },
+    updateHUD: () => {
+        ui.bpmVal.textContent = Math.floor(bpm);
+        if (bpm > GLOBAL.BPM_LIMIT) ui.bpmDisplay.classList.add('bpm-danger');
+        else ui.bpmDisplay.classList.remove('bpm-danger');
+        
+        ui.windVal.textContent = (wind.power).toFixed(1) + " m/s";
     }
 };
 
-// --- PC (マウス) 操作 ---
-document.addEventListener('mousemove', e => { 
-    // マウス操作時は絶対位置で更新
-    mouse.x = e.clientX; 
-    mouse.y = e.clientY; 
-});
-document.addEventListener('mousedown', e => {
-    // Canvasクリックで発射
-    if (e.target.id === 'gameCanvas' && currentState === STATE.PLAYING && e.button === 0) fireShot();
-});
+// --- Input Handling ---
 
-// --- モバイル (タッチ) 操作 ---
-let touchStartX = 0;
-let touchStartY = 0;
-
-canvas.addEventListener('touchstart', e => {
-    if (e.touches.length > 0) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-    }
-}, {passive: false});
-
-canvas.addEventListener('touchmove', e => {
-    e.preventDefault(); // スクロール防止
-    if (currentState !== STATE.PLAYING) return;
-    
-    if (e.touches.length > 0) {
-        const cx = e.touches[0].clientX;
-        const cy = e.touches[0].clientY;
-        
-        // 移動量（トラックパッド方式）
-        const sensitivity = 1.2;
-        const dx = (cx - touchStartX) * sensitivity;
-        const dy = (cy - touchStartY) * sensitivity;
-        
-        mouse.x += dx;
-        mouse.y += dy;
-        
-        // 画面外に行き過ぎないようクランプ
-        mouse.x = Math.max(0, Math.min(canvas.width, mouse.x));
-        mouse.y = Math.max(0, Math.min(canvas.height, mouse.y));
-        
-        touchStartX = cx;
-        touchStartY = cy;
-    }
-}, {passive: false});
-
-// モバイルボタンイベント
 const btnFocus = document.getElementById('btn-focus');
 const btnFire = document.getElementById('btn-fire');
 
-// FOCUS: 押している間だけオン
+// Focus
 const startFocus = (e) => {
     e.preventDefault();
-    if (currentState === STATE.PLAYING && !isFocusing && focusGauge > 0) {
+    if (currentState === STATE.PLAYING && !isPenalty) {
         isFocusing = true;
-        btnFocus.classList.add('pressed');
-        playSound('focus_start');
+        btnFocus.classList.add('active');
+        toggleAmbience(false); 
     }
 };
 const endFocus = (e) => {
     e.preventDefault();
-    if (isFocusing) {
-        isFocusing = false;
-        btnFocus.classList.remove('pressed');
-        playSound('focus_end');
+    isFocusing = false;
+    btnFocus.classList.remove('active');
+    toggleAmbience(true);
+};
+
+// Fire
+const handleFire = (e) => {
+    e.preventDefault();
+    if (currentState === STATE.PLAYING) {
+        // Simple animation
+        btnFire.style.transform = "scale(0.9)";
+        setTimeout(() => btnFire.style.transform = "scale(1)", 100);
+        fireShot();
     }
 };
+
+// Keybinds
+document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !e.repeat) startFocus(e);
+});
+document.addEventListener('keyup', e => {
+    if (e.code === 'Space') endFocus(e);
+});
+document.addEventListener('mousedown', e => {
+    // Only fire if clicking on canvas area (PC)
+    if (e.target.id === 'gameCanvas' && currentState === STATE.PLAYING) fireShot();
+});
+
 btnFocus.addEventListener('touchstart', startFocus);
 btnFocus.addEventListener('touchend', endFocus);
 btnFocus.addEventListener('mousedown', startFocus);
 btnFocus.addEventListener('mouseup', endFocus);
-btnFocus.addEventListener('mouseleave', endFocus);
 
-// FIRE: タップで発射
-const handleFire = (e) => {
-    e.preventDefault();
-    if (currentState === STATE.PLAYING) {
-        btnFire.classList.add('pressed');
-        setTimeout(() => btnFire.classList.remove('pressed'), 100);
-        fireShot();
-    }
-};
 btnFire.addEventListener('touchstart', handleFire);
-btnFire.addEventListener('mousedown', handleFire);
 
-// UIボタン
-document.getElementById('briefing-btn').addEventListener('click', () => { initAudio(); initLevel(currentLevelIdx); });
+// UI Clicks
+document.getElementById('briefing-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!ui.briefingBtn.classList.contains('disabled')) {
+        initAudio(); initLevel(currentLevel);
+    }
+});
+document.getElementById('briefing-box').addEventListener('click', (e) => {
+    if (e.target.id !== 'briefing-btn') {
+        initAudio();
+        if (ui.isTyping) ui.skipTyping();
+    }
+});
 document.getElementById('result-btn').addEventListener('click', () => {
-    if (currentState === STATE.ALL_CLEAR) { currentLevelIdx = 0; ui.showBriefing(0); }
-    else if (hitResult && hitResult.success) { currentLevelIdx++; ui.showBriefing(currentLevelIdx); }
-    else { initLevel(currentLevelIdx); }
-});
-
-// PC用キーボード操作
-document.addEventListener('keydown', e => {
-    if (e.code === 'Space' && currentState === STATE.PLAYING && !isFocusing && focusGauge > 0) { 
-        isFocusing = true; 
-        btnFocus.classList.add('pressed'); // UIも連動
-        playSound('focus_start'); 
-    }
-});
-document.addEventListener('keyup', e => {
-    if (e.code === 'Space' && isFocusing) { 
-        isFocusing = false; 
-        btnFocus.classList.remove('pressed');
-        playSound('focus_end'); 
-    }
+    if (currentState === STATE.ALL_CLEAR) { currentLevel = 0; ui.showBriefing(0); }
+    else if (hitResult && hitResult.success) { currentLevel++; ui.showBriefing(currentLevel); }
+    else { initLevel(currentLevel); }
 });
 
 // ==========================================
-// 4. ゲームロジック
+// 4. GAME LOGIC
 // ==========================================
 
 function initLevel(idx) {
     levelData = LEVELS[idx];
     ui.hideAll();
-    ui.level.textContent = levelData.title;
     currentState = STATE.PLAYING;
     hitResult = null;
-    focusGauge = GLOBAL.FOCUS_TIME;
+    
+    bpm = GLOBAL.BPM_BASE;
     isFocusing = false;
-    btnFocus.classList.remove('pressed');
-    
-    // スコープ位置リセット
-    mouse.x = canvas.width/2;
-    mouse.y = canvas.height/2;
-    scope = { x: mouse.x, y: mouse.y };
-    
-    worldOffset = { x:0, y:0 };
+    isPenalty = false;
+    sway = { x: 0, y: 0, time: 0 };
+    camera = { x: 0, y: 0 };
     lightning = 0;
-
+    
+    // Wind Generation
     const angle = Math.random() * Math.PI * 2;
     const power = levelData.windMin + Math.random() * (levelData.windMax - levelData.windMin);
-    wind = { x: Math.cos(angle)*power, y: Math.sin(angle)*power, power: power, angle: angle };
+    // windベクトル = 弾が1フレーム(瞬間)で流される量 * 係数
+    wind = { 
+        x: Math.cos(angle) * power, 
+        y: Math.sin(angle) * power, 
+        power: power 
+    };
 
+    // Initialize Objects
     targets = []; obstacles = []; reflector = null;
-    const cx = canvas.width/2, cy = canvas.height/2;
-
-    if (levelData.type === 'normal') targets.push(createChar(cx, cy, true));
-    else if (levelData.type === 'crowd') {
-        targets.push(createChar(cx, cy, true));
-        for(let i=0; i<levelData.civilianCount; i++) targets.push(createChar(cx + (Math.random()-0.5)*400, cy + (Math.random()-0.5)*100, false));
+    
+    if (levelData.type === 'static') targets.push(createChar(0, 0, true));
+    else if (levelData.type === 'moving') {
+        targets.push(createChar(0, 0, true)); // Target moves
+        for(let i=0; i<levelData.civilians; i++) {
+            targets.push(createChar((Math.random()-0.5)*800, (Math.random()-0.5)*400, false));
+        }
     }
     else if (levelData.type === 'glass') {
-        targets.push(createChar(cx, cy, true));
-        obstacles.push({ x: cx - 200, y: cy - 100, w: 150, h: 200, type: 'glass', speed: levelData.glassSpeed, dir: 1, baseX: cx - 200 });
-        obstacles.push({ x: cx + 50, y: cy - 100, w: 150, h: 200, type: 'glass', speed: levelData.glassSpeed, dir: -1, baseX: cx + 50 });
+        targets.push(createChar(0, 0, true));
+        obstacles.push({ x: -200, y: -100, w: 150, h: 200, type: 'glass', speed: 1.2, baseX: -200 });
+        obstacles.push({ x: 50, y: -100, w: 150, h: 200, type: 'glass', speed: 1.2, baseX: 50 });
     }
     else if (levelData.type === 'ricochet') {
-        targets.push(createChar(cx + 300, cy, true));
-        obstacles.push({ x: cx + 100, y: cy - 150, w: 150, h: 300, type: 'wall' });
-        reflector = { x: cx - 200, y: cy - 50, w: 40, h: 100 };
+        targets.push(createChar(400, 0, true));
+        obstacles.push({ x: 150, y: -200, w: 200, h: 400, type: 'wall' });
+        reflector = { x: -250, y: -80, w: 50, h: 160 };
     }
-    else if (levelData.type === 'storm') targets.push(createChar(cx, cy, true));
+    else if (levelData.type === 'storm') targets.push(createChar(0, 0, true));
 
     playAmbience(levelData.type === 'storm');
     requestAnimationFrame(gameLoop);
@@ -507,41 +625,114 @@ function createChar(x, y, isTarget) {
     return {
         x: x, y: y, baseX: x, baseY: y,
         isTarget: isTarget,
-        hasTie: isTarget && levelData.type === 'crowd',
-        moveType: levelData.type === 'crowd' ? 'walk' : 'static',
+        hasTie: isTarget && levelData.type === 'moving',
         phase: Math.random() * Math.PI * 2
     };
 }
 
+let lastTime = 0;
+let lastBeat = 0;
+
 function gameLoop(time) {
     const dt = time - lastTime;
     lastTime = time;
+    
     update(dt, time);
     draw(time);
-    if (currentState === STATE.PLAYING || currentState === STATE.ANIMATION) requestAnimationFrame(gameLoop);
+    
+    // Heartbeat
+    if (currentState === STATE.PLAYING) {
+        if (time - lastBeat > (60000 / bpm)) {
+            playSound('heartbeat', isFocusing ? 1.0 : 0.0);
+            lastBeat = time;
+        }
+    }
+
+    if (currentState !== STATE.RESULT && currentState !== STATE.ALL_CLEAR) requestAnimationFrame(gameLoop);
 }
 
 function update(dt, time) {
+    if (currentState === STATE.IMPACT) {
+        impactTimer -= dt;
+        if (impactTimer <= 0) {
+            currentState = STATE.RESULT;
+            ui.showResult(hitResult.success, hitResult.reason);
+        }
+        return;
+    }
     if (currentState !== STATE.PLAYING) return;
 
-    if (isFocusing) { focusGauge -= dt; if (focusGauge <= 0) { focusGauge = 0; isFocusing = false; btnFocus.classList.remove('pressed'); playSound('focus_end'); } }
-    else { focusGauge += dt * GLOBAL.RECOVERY; if (focusGauge > GLOBAL.FOCUS_TIME) focusGauge = GLOBAL.FOCUS_TIME; }
-
-    let swayAmt = GLOBAL.SWAY_BASE * levelData.swayScale;
-    let swayX = 0, swayY = 0;
-    if (!isFocusing) {
-        swayX = Math.sin(time * GLOBAL.SWAY_SPEED) * swayAmt + Math.cos(time * 0.003) * (swayAmt*0.5);
-        swayY = Math.cos(time * 0.0017) * swayAmt;
+    // --- 1. BPM Logic ---
+    if (isFocusing) {
+        bpm += GLOBAL.BPM_RISE * (dt/1000);
+        if (bpm > GLOBAL.BPM_LIMIT) {
+            isFocusing = false; isPenalty = true;
+            btnFocus.classList.remove('active');
+            toggleAmbience(true); playSound('gasp');
+            setTimeout(() => isPenalty = false, 4000);
+        }
+    } else {
+        bpm = Math.max(GLOBAL.BPM_BASE, bpm - GLOBAL.BPM_RECOVER * (dt/1000));
     }
-    scope.x += (mouse.x + swayX - scope.x) * 0.5;
-    scope.y += (mouse.y + swayY - scope.y) * 0.5;
+    ui.updateHUD();
 
-    targets.forEach(t => { if (t.moveType === 'walk') t.x = t.baseX + Math.sin(time * 0.001 + t.phase) * 100; });
-    obstacles.forEach(o => { if (o.type === 'glass') o.x = o.baseX + Math.sin(time * 0.001 * o.speed) * 80; });
+    // --- 2. Auto Tracking & Sway Logic ---
+    // Target position (Main target)
+    let mainTarget = targets.find(t => t.isTarget);
+    let targetX = mainTarget ? mainTarget.x : 0;
+    let targetY = mainTarget ? mainTarget.y : 0;
 
+    // Calculate Sway
+    // 「正解の着弾点」＝ TargetPos - WindVector (偏差射撃)
+    // Swayは「TargetPos」を中心に動くが、必ず「-WindVector」の位置を通過させたい。
+    // そのために、Swayの軌道にWind成分を周期的に相殺するバイアスを掛けるか、
+    // あるいは単純に振幅を風よりも大きくし、確率的に通過させる。
+    // ここでは「振幅 > 風速」を保証し、軌道を8の字にして通過頻度を高める。
+
+    let swaySpeed = GLOBAL.SWAY_SPEED;
+    let swayAmp = GLOBAL.BASE_SWAY;
+    
+    // FOCUS補正
+    if (isFocusing) {
+        swaySpeed *= GLOBAL.FOCUS_SLOW;
+        // 振幅は小さくしすぎると、強風時に「風上」まで届かなくなる（詰む）
+        // なので、最低でも風の影響分は振幅を残す必要がある
+        const minAmp = Math.sqrt(wind.x**2 + wind.y**2) * GLOBAL.WIND_INFLUENCE * 1.2;
+        swayAmp = Math.max(minAmp, swayAmp * GLOBAL.FOCUS_STABILIZE); 
+    }
+    if (isPenalty) { swaySpeed *= 2.0; swayAmp *= 3.0; }
+    
+    // BPM Stress
+    const stress = Math.max(0, (bpm - GLOBAL.BPM_BASE) / 50);
+    swaySpeed *= (1 + stress);
+    swayAmp *= (1 + stress * 0.5);
+
+    sway.time += dt * swaySpeed;
+
+    // Lissajous Curve (8-figure)
+    // ターゲットを中心に揺れる
+    sway.x = Math.sin(sway.time) * swayAmp;
+    sway.y = Math.sin(sway.time * 2) * (swayAmp * 0.5);
+
+    // Camera Position (Look At)
+    // プレイヤーはターゲットを追尾しているが、手ブレ(Sway)がある
+    camera.x = targetX + sway.x;
+    camera.y = targetY + sway.y;
+
+    // --- 3. Object Updates ---
+    targets.forEach(t => {
+        if (levelData.type === 'moving') {
+            t.x = t.baseX + Math.sin(time * 0.001 + t.phase) * 120;
+        }
+    });
+    obstacles.forEach(o => {
+        if (o.type === 'glass') {
+            o.x = o.baseX + Math.sin(time * 0.001 * o.speed) * 80;
+        }
+    });
+
+    // Storm
     if (levelData.type === 'storm') {
-        worldOffset.x = Math.sin(time * 0.0008) * 50 + Math.sin(time * 0.002) * 20;
-        worldOffset.y = Math.cos(time * 0.001) * 30;
         if (lightning > 0) lightning -= 0.05;
         if (Math.random() < 0.005) { lightning = 1.0; playSound('thunder'); }
     }
@@ -549,431 +740,368 @@ function update(dt, time) {
 
 function fireShot() {
     playSound('gunshot');
-    const hitX = scope.x + wind.x;
-    const hitY = scope.y + wind.y;
-    let success = false, failReason = "", hitSomething = false;
+    setTimeout(() => playSound('shell'), 800); // 排莢音
 
+    // --- Ballistics Calculation ---
+    // 弾丸着弾地点(World Coords) = 現在のカメラ位置(Scope Center) + 風の影響
+    // Wind Influence: wind.x * coefficient
+    
+    const driftX = wind.x * GLOBAL.WIND_INFLUENCE;
+    const driftY = wind.y * GLOBAL.WIND_INFLUENCE;
+    
+    const impactX = camera.x + driftX;
+    const impactY = camera.y + driftY;
+
+    let success = false, reason = "", hitSomething = false;
+
+    // Hit Detection
+    // 1. Obstacles
     for (let o of obstacles) {
-        let ox = o.x + worldOffset.x, oy = o.y + worldOffset.y;
-        if (hitX > ox && hitX < ox + o.w && hitY > oy && hitY < oy + o.h) {
+        if (impactX > o.x && impactX < o.x + o.w && impactY > o.y && impactY < o.y + o.h) {
             hitSomething = true;
-            if (o.type === 'glass') { failReason = "弾丸が防弾ガラスに阻まれた。"; playSound('ricochet'); }
-            else { failReason = "壁に着弾。ターゲットに届かない。"; }
+            if (o.type === 'glass') { reason = "防弾ガラスに着弾。"; playSound('ricochet'); }
+            else { reason = "障害物に着弾。"; }
             break;
         }
     }
+
+    // 2. Reflector (Ricochet)
     if (!hitSomething && reflector) {
-        let rx = reflector.x + worldOffset.x, ry = reflector.y + worldOffset.y;
-        if (hitX > rx && hitX < rx + reflector.w && hitY > ry && hitY < ry + reflector.h) {
-            success = true; hitSomething = true; playSound('ricochet');
+        if (impactX > reflector.x && impactX < reflector.x + reflector.w && 
+            impactY > reflector.y && impactY < reflector.y + reflector.h) {
+            
+            hitSomething = true; playSound('ricochet');
+            // 跳弾成功 = ターゲット命中とする（簡易ロジック）
             let t = targets.find(t => t.isTarget);
-            hitResult = { x: hitX, y: hitY, success: true, ricochetTo: {x: t.x + worldOffset.x, y: t.y + worldOffset.y} };
+            hitResult = { success: true, x: impactX, y: impactY, ricochet: {x: t.x, y: t.y} };
+            success = true;
         }
     }
+
+    // 3. Targets
     if (!hitSomething) {
-        const radius = GLOBAL.HIT_RADIUS * levelData.distScale;
+        const r = GLOBAL.HIT_RADIUS * levelData.dist;
         for (let t of targets) {
-            let tx = t.x + worldOffset.x, ty = t.y + worldOffset.y;
-            if (Math.sqrt(Math.pow(hitX-tx, 2) + Math.pow(hitY-ty, 2)) < radius) {
+            let dist = Math.sqrt((impactX - t.x)**2 + (impactY - t.y)**2);
+            if (dist < r) {
                 hitSomething = true;
                 if (t.isTarget) success = true;
-                else { success = false; failReason = "一般市民を誤射した。任務失敗。"; }
+                else { success = false; reason = "一般市民を殺害。任務失敗。"; }
                 break;
             }
         }
     }
-    if (!hitSomething && !success) failReason = "ターゲットを外した。";
-    if (!hitResult) hitResult = { x: hitX, y: hitY, success: success, reason: failReason };
-    currentState = STATE.ANIMATION;
-    setTimeout(() => { success ? playSound('win') : playSound('lose'); ui.showResult(success, failReason); }, 1500);
+
+    if (!hitSomething && !success) reason = "ターゲットを外した。風読みが甘い。";
+    
+    if (!hitResult) hitResult = { success: success, reason: reason, x: impactX, y: impactY };
+
+    // Impact
+    currentState = STATE.IMPACT;
+    impactTimer = success ? 2500 : 1500;
+    playSound(success ? 'impact' : 'miss');
 }
 
 // ==========================================
-// 5. 描画 (Graphic Remastered)
+// 5. RENDERING
 // ==========================================
 
 function draw(time) {
-    let brightness = 1.0;
-    if (levelData.bgType === 'storm' || levelData.bgType === 'sunset') brightness = 0.5;
-    if (levelData.type === 'storm' && lightning > 0) brightness += lightning * 0.8;
-
-    // キャンバス初期化（黒で塗りつぶさないとdestination-outが効かない場合があるが、背景描画で上書きする）
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.save();
-    
-    // ズーム処理
-    if (isFocusing) {
-        ctx.translate(canvas.width/2, canvas.height/2);
-        ctx.scale(GLOBAL.FOCUS_ZOOM, GLOBAL.FOCUS_ZOOM);
-        ctx.translate(-scope.x, -scope.y);
+    // Weather Brightness
+    let brightness = 1.0;
+    if (levelData.bg === 'storm' || levelData.bg === 'night') brightness = 0.4;
+    else if (levelData.bg === 'sunset') brightness = 0.6;
+    if (lightning > 0) brightness = 1.5;
+
+    // Kill Effect (Monochrome + Stop)
+    if (currentState === STATE.IMPACT && hitResult.success) {
+        ctx.filter = 'grayscale(100%) contrast(150%)';
+        brightness *= 1.5;
     } else {
-        ctx.translate(canvas.width/2 - scope.x, canvas.height/2 - scope.y);
+        ctx.filter = 'none';
     }
-    ctx.translate(worldOffset.x, worldOffset.y);
 
-    // 1. 背景描画 (グラデーション空)
-    drawSky(brightness);
+    ctx.save();
 
-    // 2. 背景ビル群 (遠景)
-    drawCityBackground(brightness);
-
-    // 3. メインオブジェクト描画
-    drawWorldObjects(time, brightness);
+    // --- Camera Transform ---
+    // 画面中央に Scope Center (camera.x, camera.y) が来るように描画
+    // Zoom
+    let zoom = isFocusing ? 3.5 : 1.2; // 通常時も少しズーム
+    if (isPenalty) zoom += Math.sin(time*0.1)*0.1;
     
-    // 4. 着弾エフェクト
-    if (hitResult) drawHitEffects();
+    const cx = canvas.width/2;
+    const cy = canvas.height/2;
+
+    ctx.translate(cx, cy);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-camera.x, -camera.y);
+
+    drawSky(brightness);
+    drawBackground(brightness);
+    drawObjects(time, brightness);
+    
+    if (hitResult) drawHitMarker();
 
     ctx.restore();
 
-    // 5. 手前のエフェクト (雨)
-    if (levelData.type === 'storm') drawRain(time);
-
-    // 6. スコープ (リアル表現)
-    drawRealisticScope();
-
-    // 7. HUD
-    drawHUD();
+    // --- Overlays ---
+    ctx.filter = 'none'; // UIはフィルタかけない
+    if (levelData.bg === 'storm') drawRain(time);
+    
+    drawScope(cx, cy);
 }
 
-function drawSky(brightness) {
-    const w = 4000;
-    const h = 4000;
-    // 空のグラデーション作成
-    const grad = ctx.createLinearGradient(0, scope.y - 1000, 0, scope.y + 1000);
+function drawSky(b) {
+    const w=5000, h=5000;
+    const g = ctx.createLinearGradient(0, -2000, 0, 2000);
+    if (levelData.bg === 'day') { g.addColorStop(0,`rgba(135,206,235,${b})`); g.addColorStop(1,`rgba(200,230,255,${b})`); }
+    else if (levelData.bg === 'sunset') { g.addColorStop(0,`rgba(20,10,30,${b})`); g.addColorStop(1,`rgba(150,50,30,${b})`); }
+    else { g.addColorStop(0,`rgba(5,5,10,${b})`); g.addColorStop(1,`rgba(20,20,30,${b})`); }
+    ctx.fillStyle = g; ctx.fillRect(-w/2, -h/2, w, h);
     
-    if (levelData.bgType === 'day') {
-        grad.addColorStop(0, `rgba(100, 180, 255, ${brightness})`); // 青空
-        grad.addColorStop(1, `rgba(200, 230, 255, ${brightness})`);
-    } else if (levelData.bgType === 'sunset') {
-        grad.addColorStop(0, `rgba(60, 40, 80, ${brightness})`); // 紫
-        grad.addColorStop(0.5, `rgba(200, 100, 50, ${brightness})`); // オレンジ
-        grad.addColorStop(1, `rgba(100, 50, 30, ${brightness})`);
-    } else if (levelData.bgType === 'storm') {
-        grad.addColorStop(0, `rgba(5, 5, 20, ${brightness})`); // 濃紺
-        grad.addColorStop(1, `rgba(20, 20, 40, ${brightness})`);
+    // Moving Clouds
+    ctx.fillStyle = `rgba(255,255,255,${b*0.1})`;
+    for(let i=0; i<8; i++) {
+        let x = ((Date.now()*0.01*wind.power + i*600)%4000) - 2000;
+        ctx.beginPath(); ctx.arc(x, -500+i*50, 200+i*30, 0, Math.PI*2); ctx.fill();
     }
-
-    ctx.fillStyle = grad;
-    ctx.fillRect(scope.x - w/2, scope.y - h/2, w, h);
 }
 
-function drawCityBackground(brightness) {
-    const cx = canvas.width/2;
-    const cy = canvas.height/2;
-    
-    // メインターゲットがいるビル
-    drawBuilding(cx - 300, cy - 400, 600, 1000, brightness, 50);
-
-    // 左右のビル（装飾）
-    drawBuilding(cx - 700, cy - 200, 300, 800, brightness * 0.8, 30);
-    drawBuilding(cx + 400, cy - 300, 400, 900, brightness * 0.8, 40);
+function drawBackground(b) {
+    // Simple City
+    drawBuilding(-400, -500, 800, 1200, b, 60);
+    drawBuilding(-900, -300, 400, 1000, b*0.8, 40);
+    drawBuilding(500, -400, 500, 1100, b*0.8, 50);
 }
 
-// プロシージャルビル描画関数
-function drawBuilding(x, y, w, h, brightness, winSize) {
-    // ビル本体
-    ctx.fillStyle = `rgba(20, 20, 25, ${brightness})`;
-    ctx.fillRect(x, y, w, h);
-    
-    // 窓の描画
-    const cols = Math.floor((w - 20) / winSize);
-    const rows = Math.floor((h - 20) / (winSize * 1.5));
-    
-    for (let i = 0; i < cols; i++) {
-        for (let j = 0; j < rows; j++) {
-            const seed = (i * 1234 + j * 5678 + x);
-            const isLit = Math.sin(seed) > 0.3; // 70%くらい点灯
+function drawBuilding(x, y, w, h, b, win) {
+    ctx.fillStyle = `rgba(10,12,15,${b})`; ctx.fillRect(x,y,w,h);
+    const cols = (w-20)/win|0, rows = (h-20)/(win*1.5)|0;
+    ctx.fillStyle = `rgba(255,240,150,${b*0.5})`;
+    for(let i=0;i<cols;i++) for(let j=0;j<rows;j++) {
+        if(Math.sin(i*9+j*7+x)>0.3) ctx.fillRect(x+10+i*win, y+20+j*win*1.5, win-10, win*1.2);
+    }
+}
 
-            const wx = x + 10 + i * winSize;
-            const wy = y + 20 + j * (winSize * 1.5);
-            
-            if (isLit) {
-                const flicker = Math.random() * 0.2 + 0.8; // 微妙に揺らぐ
-                ctx.fillStyle = `rgba(255, 240, 150, ${brightness * flicker})`;
-            } else {
-                ctx.fillStyle = `rgba(10, 10, 15, ${brightness})`;
-            }
-            ctx.fillRect(wx + 2, wy + 2, winSize - 8, winSize * 1.2);
+function drawObjects(time, b) {
+    // Targets
+    targets.forEach(t => {
+        ctx.save(); ctx.translate(t.x, t.y); ctx.scale(levelData.dist, levelData.dist);
+        
+        // Target Highlight (Backlight)
+        if(t.isTarget && levelData.type !== 'moving') {
+            ctx.fillStyle = `rgba(255,200,100,${b*0.6})`;
+            ctx.shadowBlur=30; ctx.shadowColor='orange';
+            ctx.fillRect(-25,-40,50,100); ctx.shadowBlur=0;
         }
-    }
-}
+        
+        // Body
+        ctx.fillStyle = `rgba(5,5,5,${b})`;
+        ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
+        ctx.fillRect(-12,12,24,40);
+        
+        // Tie
+        if(t.hasTie) {
+            ctx.fillStyle = `rgba(50,100,255,${b*1.5})`;
+            ctx.beginPath(); ctx.moveTo(0,14); ctx.lineTo(4,35); ctx.lineTo(0,40); ctx.lineTo(-4,35); ctx.fill();
+        }
+        ctx.restore();
+    });
 
-function drawWorldObjects(time, brightness) {
-    targets.forEach(t => drawPerson(t, brightness));
-
+    // Obstacles
     obstacles.forEach(o => {
-        if (o.type === 'glass') {
-            const grad = ctx.createLinearGradient(o.x, o.y, o.x + o.w, o.y + o.h);
-            grad.addColorStop(0, `rgba(200, 255, 255, 0.1)`);
-            grad.addColorStop(0.5, `rgba(200, 255, 255, 0.3)`);
-            grad.addColorStop(1, `rgba(200, 255, 255, 0.1)`);
-            ctx.fillStyle = grad;
-            ctx.strokeStyle = `rgba(200, 255, 255, 0.4)`;
-            ctx.lineWidth = 1;
-            ctx.fillRect(o.x, o.y, o.w, o.h);
-            ctx.strokeRect(o.x, o.y, o.w, o.h);
-        } else if (o.type === 'wall') {
-            ctx.fillStyle = `rgba(50, 50, 55, ${brightness})`;
-            ctx.fillRect(o.x, o.y, o.w, o.h);
-            ctx.fillStyle = `rgba(0,0,0,0.2)`;
-            ctx.fillRect(o.x, o.y + 50, o.w, 10);
-            ctx.fillRect(o.x, o.y + 200, o.w, 20);
+        if(o.type==='glass') {
+            const g=ctx.createLinearGradient(o.x,o.y,o.x+o.w,o.y+o.h);
+            g.addColorStop(0,'rgba(200,255,255,0.05)'); g.addColorStop(0.5,'rgba(255,255,255,0.2)'); g.addColorStop(1,'rgba(200,255,255,0.05)');
+            ctx.fillStyle=g; ctx.fillRect(o.x,o.y,o.w,o.h);
+            ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.strokeRect(o.x,o.y,o.w,o.h);
+        } else {
+            ctx.fillStyle=`rgba(30,30,35,${b})`; ctx.fillRect(o.x,o.y,o.w,o.h);
         }
     });
 
-    if (reflector) {
-        const grad = ctx.createLinearGradient(reflector.x, reflector.y, reflector.x + reflector.w, reflector.y);
-        grad.addColorStop(0, '#555');
-        grad.addColorStop(0.5, '#fff'); // ハイライト
-        grad.addColorStop(1, '#555');
-        ctx.fillStyle = grad;
-        ctx.fillRect(reflector.x, reflector.y, reflector.w, reflector.h);
+    if(reflector) {
+        ctx.fillStyle='#888'; ctx.fillRect(reflector.x,reflector.y,reflector.w,reflector.h);
+        ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillRect(reflector.x+2,reflector.y,5,reflector.h);
     }
 }
 
-function drawPerson(c, brightness) {
-    const scale = levelData.distScale;
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.scale(scale, scale);
-
-    // ★追加修正: Lv.1ターゲット強調（逆光演出）
-    if (c.isTarget && levelData.type === 'normal') {
-        // 背後の窓を明るく光らせる
-        ctx.fillStyle = `rgba(255, 250, 200, ${brightness + 0.2})`;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = 'rgba(255, 200, 100, 0.5)';
-        // 人物のシルエットが収まるサイズ
-        ctx.fillRect(-20, -20, 40, 80);
-        ctx.shadowBlur = 0;
-    }
-
-    const colorBase = `rgba(10, 10, 10, ${brightness})`;
-
-    // 胴体
-    ctx.fillStyle = colorBase;
-    ctx.beginPath();
-    ctx.moveTo(-12, 12);
-    ctx.lineTo(12, 12);
-    ctx.lineTo(10, 45); 
-    ctx.lineTo(-10, 45);
-    ctx.closePath();
-    ctx.fill();
-
-    // ネクタイ
-    if (c.hasTie) {
-        ctx.fillStyle = '#0af';
-        ctx.beginPath();
-        ctx.moveTo(-3, 15);
-        ctx.lineTo(3, 15);
-        ctx.lineTo(0, 35);
-        ctx.fill();
-    }
-
-    // 頭部
-    ctx.fillStyle = colorBase;
-    ctx.beginPath();
-    ctx.arc(0, 0, 9, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-}
-
-function drawHitEffects() {
-    const markX = hitResult.x - worldOffset.x;
-    const markY = hitResult.y - worldOffset.y;
+function drawHitMarker() {
+    const {x, y, success, ricochet} = hitResult;
+    ctx.fillStyle = success ? '#d22' : '#fff';
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
     
-    // 着弾点
-    const color = hitResult.success ? '#f00' : '#fff';
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(markX, markY, 3, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(markX-5, markY-5); ctx.lineTo(markX+5, markY+5);
-    ctx.moveTo(markX+5, markY-5); ctx.lineTo(markX-5, markY+5);
-    ctx.stroke();
-
-    if (hitResult.ricochetTo) {
-        // 跳弾ライン
-        const tx = hitResult.ricochetTo.x - worldOffset.x;
-        const ty = hitResult.ricochetTo.y - worldOffset.y;
-        
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(markX, markY);
-        ctx.lineTo(tx, ty);
-        ctx.stroke();
-        
-        // ターゲット側着弾
-        ctx.fillStyle = '#f00';
-        ctx.beginPath(); ctx.arc(tx, ty, 3, 0, Math.PI*2); ctx.fill();
+    if(ricochet) {
+        ctx.strokeStyle = '#fd0'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ricochet.x, ricochet.y); ctx.stroke();
     }
 }
 
 function drawRain(time) {
-    ctx.strokeStyle = 'rgba(200, 220, 255, 0.2)';
-    ctx.lineWidth = 1;
+    const ra = Math.atan2(wind.y, wind.x+50);
+    const rdx = Math.cos(ra)*20, rdy = Math.sin(ra)*40;
+    ctx.strokeStyle = 'rgba(150,170,200,0.3)'; ctx.lineWidth = 1;
     ctx.beginPath();
-    const w = canvas.width;
-    const h = canvas.height;
-    for (let i = 0; i < 150; i++) {
-        // 時間経過で動く雨
-        const x = (i * 137 + time * 1.5) % w;
-        const y = (i * 253 + time * 3.0) % h;
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - 10, y + 30); // 強風で斜めに
+    const w = canvas.width, h = canvas.height;
+    for(let i=0; i<150; i++) {
+        let x = (i*97 + time*4 + wind.x*time*0.02) % w;
+        let y = (i*67 + time*6) % h;
+        if(x<0) x+=w;
+        ctx.moveTo(x,y); ctx.lineTo(x-rdx, y+rdy);
     }
     ctx.stroke();
 }
 
-// リアルなスコープ描画
-function drawRealisticScope() {
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const r = canvas.height * 0.45;
-
-    // スコープの外側（完全な黒）
+function drawScope(cx, cy) {
+    const r = Math.min(canvas.width, canvas.height) * 0.45;
+    
+    // Mask
     ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.rect(0, 0, canvas.width, canvas.height);
-    ctx.arc(cx, cy, r, 0, Math.PI*2, true);
-    ctx.fill();
-
-    // レンズの周辺減光とボケ
-    const grad = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, r);
-    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.4)'); 
-    grad.addColorStop(0.95, 'rgba(0, 0, 0, 0.9)'); 
-    grad.addColorStop(1, 'rgba(0, 0, 0, 1)');      
+    ctx.beginPath(); ctx.rect(0,0,canvas.width,canvas.height); ctx.arc(cx,cy,r,0,Math.PI*2,true); ctx.fill();
     
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
-    ctx.fill();
-
-    // レティクル
-    ctx.strokeStyle = 'rgba(200, 0, 0, 0.8)';
-    ctx.lineWidth = 1;
+    // Lens
+    const g = ctx.createRadialGradient(cx,cy,r*0.6,cx,cy,r);
+    g.addColorStop(0,'transparent'); g.addColorStop(0.9,'rgba(0,0,0,0.5)'); g.addColorStop(1,'#000');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
     
-    ctx.beginPath();
-    ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
-    ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
-    ctx.stroke();
-
-    // ミル・ドット
-    ctx.fillStyle = 'rgba(200, 0, 0, 0.9)';
-    for(let i = -4; i <= 4; i++){
-        if(i === 0) continue;
-        const gap = 50;
-        ctx.beginPath(); ctx.arc(cx + i * gap, cy, 1.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx, cy + i * gap, 1.5, 0, Math.PI*2); ctx.fill();
+    // Reticle (Mildots)
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx-r,cy); ctx.lineTo(cx+r,cy); ctx.moveTo(cx,cy-r); ctx.lineTo(cx,cy+r); ctx.stroke();
+    
+    ctx.fillStyle = '#000';
+    const dotGap = r / 6;
+    for(let i=1; i<=4; i++) {
+        // H
+        ctx.beginPath(); ctx.arc(cx+i*dotGap,cy,2,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx-i*dotGap,cy,2,0,Math.PI*2); ctx.fill();
+        // V
+        ctx.beginPath(); ctx.arc(cx,cy+i*dotGap,2,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx,cy-i*dotGap,2,0,Math.PI*2); ctx.fill();
     }
-    
-    // 中心ドット
-    ctx.fillStyle = '#f00';
-    ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
-}
 
-function drawHUD() {
-    const wx = canvas.width - 120;
-    const wy = canvas.height - 120;
-    
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
-
-    ctx.fillStyle = '#4f4';
-    ctx.font = 'bold 16px Courier New';
-    ctx.textAlign = 'center';
-    ctx.fillText("WIND: " + (wind.power/10).toFixed(1) + "m/s", wx, wy + 50);
-
-    ctx.save();
+    // Wind Indicator
+    const wx = cx + r*0.65, wy = cy + r*0.65;
     ctx.translate(wx, wy);
-    ctx.rotate(wind.angle);
-    ctx.strokeStyle = '#4f4';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-20,0); ctx.lineTo(20,0);
-    ctx.lineTo(12,-5); ctx.moveTo(20,0); ctx.lineTo(12,5);
-    ctx.stroke();
-    ctx.restore();
-
-    const gx = 50, gy = canvas.height - 50;
-    const ratio = focusGauge / GLOBAL.FOCUS_TIME;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(gx, gy, 200, 10);
-    ctx.fillStyle = ratio > 0.3 ? '#4f4' : '#f44';
-    ctx.fillRect(gx, gy, 200 * ratio, 10);
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
-    ctx.fillText("FOCUS", gx, gy - 10);
-
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
+    
+    // Compass
+    ctx.strokeStyle = '#4f4'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0,0,25,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fill();
+    
+    // Arrow
+    const windAngle = Math.atan2(wind.y, wind.x);
+    ctx.rotate(windAngle);
+    ctx.beginPath(); ctx.moveTo(-15,0); ctx.lineTo(15,0); ctx.lineTo(10,-5); ctx.moveTo(15,0); ctx.lineTo(10,5); ctx.stroke();
+    ctx.rotate(-windAngle); // reset rot
+    
+    ctx.fillStyle = '#4f4'; ctx.font = '10px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText("WIND", 0, -35);
+    
+    ctx.translate(-wx, -wy);
 }
 
 // ==========================================
-// 6. 音声 (Web Audio API)
+// 6. AUDIO
 // ==========================================
-let audioCtx = null;
-let ambienceNode = null;
+let ac = null, amb = null, ambGain = null;
 
-function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-function makeNoise() {
-    const bs = audioCtx.sampleRate * 2, buf = audioCtx.createBuffer(1, bs, audioCtx.sampleRate), d = buf.getChannelData(0);
-    for(let i=0; i<bs; i++) d[i] = Math.random()*2-1;
-    return buf;
-}
-function playSound(type) {
-    if (!audioCtx) return;
-    const t = audioCtx.currentTime;
-    if (type === 'gunshot') {
-        const src = audioCtx.createBufferSource(); src.buffer = makeNoise();
-        const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(3000, t); f.frequency.exponentialRampToValueAtTime(100, t+0.2);
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.3);
-        src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(t);
-        const osc = audioCtx.createOscillator(); osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(10, t+0.5);
-        const og = audioCtx.createGain(); og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.01, t+0.5);
-        osc.connect(og); og.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.5);
-    } else if (type === 'ricochet') {
-        const osc = audioCtx.createOscillator(); osc.type = 'square'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(2000, t+0.1);
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.1);
-        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.1);
-    } else if (type === 'thunder') {
-        const src = audioCtx.createBufferSource(); src.buffer = makeNoise();
-        const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 200;
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.01, t+1.0);
-        src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(t);
-    } else if (type === 'focus_start') {
-        const osc = audioCtx.createOscillator(); osc.frequency.setValueAtTime(200, t); osc.frequency.linearRampToValueAtTime(400, t+0.5);
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.1, t+0.5);
-        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.6);
-    } else if (type === 'focus_end') {
-        const osc = audioCtx.createOscillator(); osc.frequency.setValueAtTime(400, t); osc.frequency.linearRampToValueAtTime(200, t+0.3);
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.1, t); g.gain.linearRampToValueAtTime(0, t+0.3);
-        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.3);
-    } else if (type === 'win') {
-        const osc = audioCtx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 523.25;
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.1, t+0.1); g.gain.linearRampToValueAtTime(0, t+2);
-        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+2);
-    } else if (type === 'lose') {
-        const osc = audioCtx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 100;
-        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.1, t); g.gain.linearRampToValueAtTime(0, t+1);
-        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+1);
+function initAudio() { if(!ac) ac = new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }
+
+function playSound(type, vol=1.0) {
+    if(!ac) return;
+    const t = ac.currentTime;
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    
+    if(type==='type') { // Keyboard clack
+        osc.type = 'square'; osc.frequency.value = 800+Math.random()*400;
+        g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.05);
+        osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+0.05);
+    }
+    else if(type==='heartbeat') { // Low thud
+        osc.frequency.setValueAtTime(60, t); osc.frequency.exponentialRampToValueAtTime(30, t+0.1);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol*1.5, t+0.05); g.gain.exponentialRampToValueAtTime(0.001, t+0.4);
+        const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=120;
+        osc.connect(f); f.connect(g); g.connect(ac.destination);
+        osc.start(t); osc.stop(t+0.5);
+        
+        // Secondary beat
+        setTimeout(()=>{
+            const o2=ac.createOscillator(); const g2=ac.createGain(); const f2=ac.createBiquadFilter(); f2.type='lowpass'; f2.frequency.value=120;
+            o2.frequency.setValueAtTime(50, ac.currentTime); o2.frequency.exponentialRampToValueAtTime(30, ac.currentTime+0.1);
+            g2.gain.setValueAtTime(0, ac.currentTime); g2.gain.linearRampToValueAtTime(vol*1.0, ac.currentTime+0.05); g2.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.4);
+            o2.connect(f2); f2.connect(g2); g2.connect(ac.destination); o2.start(ac.currentTime); o2.stop(ac.currentTime+0.5);
+        }, 200);
+    }
+    else if(type==='gunshot') {
+        const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+        const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+        const src = ac.createBufferSource(); src.buffer = buf;
+        const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.setValueAtTime(3000,t); f.frequency.exponentialRampToValueAtTime(100,t+0.5);
+        g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.01,t+0.5);
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
+    }
+    else if(type==='shell') { // Brass drop
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1200, t); osc.frequency.exponentialRampToValueAtTime(600, t+0.1);
+        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.2);
+        osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+0.2);
+        // bounce
+        setTimeout(()=>{
+            const o2=ac.createOscillator(); o2.type='triangle'; const g2=ac.createGain();
+            o2.frequency.setValueAtTime(1000, ac.currentTime); 
+            g2.gain.setValueAtTime(0.05, ac.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.1);
+            o2.connect(g2); g2.connect(ac.destination); o2.start(ac.currentTime); o2.stop(ac.currentTime+0.1);
+        }, 150);
+    }
+    else if(type==='impact') { // Hit sound
+        osc.frequency.setValueAtTime(100, t); osc.frequency.exponentialRampToValueAtTime(20, t+1);
+        g.gain.setValueAtTime(0.8, t); g.gain.linearRampToValueAtTime(0, t+1);
+        osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+1.5);
+    }
+    else if(type==='gasp') {
+        const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+        const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+        const src = ac.createBufferSource(); src.buffer = buf;
+        const f = ac.createBiquadFilter(); f.type='bandpass'; f.frequency.value=400;
+        g.gain.setValueAtTime(0.3,t); g.gain.linearRampToValueAtTime(0,t+0.5);
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
+    }
+    else if(type==='ricochet') {
+        osc.type='sawtooth';
+        osc.frequency.setValueAtTime(600,t); osc.frequency.linearRampToValueAtTime(200,t+0.3);
+        g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.01,t+0.3);
+        osc.connect(g); g.connect(ac.destination); osc.start(t); osc.stop(t+0.3);
+    }
+    else if(type==='thunder') {
+        const buf = ac.createBuffer(1, ac.sampleRate*2, ac.sampleRate);
+        const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+        const src = ac.createBufferSource(); src.buffer = buf;
+        const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=200;
+        g.gain.setValueAtTime(0.8,t); g.gain.exponentialRampToValueAtTime(0.01,t+1.5);
+        src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t);
     }
 }
+
 function playAmbience(isStorm) {
-    if (!audioCtx) return;
-    if (ambienceNode) { ambienceNode.stop(); ambienceNode = null; }
-    const src = audioCtx.createBufferSource(); src.buffer = makeNoise(); src.loop = true;
-    const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = isStorm ? 800 : 300;
-    const g = audioCtx.createGain(); g.gain.value = isStorm ? 0.15 : 0.05;
-    src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(); ambienceNode = src;
+    if(!ac) return;
+    if(amb) { amb.stop(); amb=null; }
+    const buf = ac.createBuffer(1, ac.sampleRate*2, ac.sampleRate);
+    const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=isStorm?500:200;
+    ambGain = ac.createGain(); ambGain.gain.value = isStorm?0.15:0.03;
+    src.connect(f); f.connect(ambGain); ambGain.connect(ac.destination); src.start();
+    amb = src;
+}
+
+function toggleAmbience(on) {
+    if(!ambGain) return;
+    const val = on ? (levelData.type==='storm'?0.15:0.03) : 0.005;
+    ambGain.gain.setTargetAtTime(val, ac.currentTime, 0.2);
 }
 
 ui.showBriefing(0);
