@@ -730,7 +730,7 @@ function initLevel(idx) {
     // Initialize Objects
     targets = []; obstacles = []; reflector = null;
     
-    if (levelData.type === 'static' || levelData.type === 'gap_shot' || levelData.type === 'armor_piercing') {
+    if (levelData.type === 'static' || levelData.type === 'gap_shot' || levelData.type === 'armor_piercing' || levelData.type === 'glass') {
         targets.push(createChar(0, 0, true));
     }
     
