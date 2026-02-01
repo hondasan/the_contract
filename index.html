@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>THE CONTRACT - 最後の仕事 (Lv1 Fix) -</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* スクロール・ズーム無効化 */
+        }
+        canvas {
+            display: block;
+            cursor: none;
+            touch-action: none;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+            z-index: 20;
+        }
+        .message-box {
+            background: rgba(10, 10, 15, 0.9);
+            border: 1px solid #4af;
+            box-shadow: 0 0 20px rgba(0, 100, 255, 0.2);
+            padding: 20px;
+            text-align: center;
+            max-width: 80%;
+            display: none;
+            pointer-events: auto;
+        }
+        .message-box.active {
+            display: block;
+        }
+        h1 {
+            color: #fff;
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+            letter-spacing: 0.1em;
+            border-bottom: 2px solid #4af;
+            display: inline-block;
+            padding-bottom: 5px;
+        }
+        h2 {
+            color: #4af;
+            margin: 10px 0 15px 0;
+            font-size: 1rem;
+        }
+        p {
+            color: #ccc;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+        .btn {
+            display: inline-block;
+            background: rgba(0, 50, 100, 0.5);
+            border: 1px solid #4af;
+            padding: 10px 30px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .btn:hover, .btn:active {
+            background: #4af;
+            color: #000;
+            box-shadow: 0 0 15px #4af;
+        }
+        #level-indicator {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            color: #0f0;
+            font-size: 1rem;
+            font-weight: bold;
+            z-index: 10;
+            text-shadow: 0 0 5px #0f0;
+        }
+        
+        /* モバイル用コントロール */
+        #mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            pointer-events: none;
+            z-index: 30;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+        }
+        .control-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            color: rgba(0, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            pointer-events: auto;
+            user-select: none;
+            backdrop-filter: blur(2px);
+            transition: background 0.1s, transform 0.1s;
+        }
+        .control-btn:active, .control-btn.pressed {
+            background: rgba(0, 255, 255, 0.4);
+            transform: scale(0.95);
+            color: #fff;
+        }
+        .fire-btn {
+            border-color: rgba(255, 50, 50, 0.6);
+            color: rgba(255, 50, 50, 0.8);
+            background: rgba(255, 50, 50, 0.1);
+        }
+        .fire-btn:active {
+            background: rgba(255, 50, 50, 0.5);
+        }
+
+        .blink { animation: blinker 2s ease-in-out infinite; }
+        @keyframes blinker { 50% { opacity: 0.5; } }
+        
+        .result-text { font-size: 2rem; font-weight: bold; margin-bottom: 15px; }
+        .win { color: #4ff; text-shadow: 0 0 20px #0ff; }
+        .lose { color: #f44; text-shadow: 0 0 20px #f00; }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div id="level-indicator">Initializing...</div>
+
+<div id="ui-layer">
+    <!-- ブリーフィング -->
+    <div id="briefing-box" class="message-box">
+        <h1 id="briefing-title">MISSION 1</h1>
+        <h2 id="briefing-subtitle">TARGET: UNKNOWN</h2>
+        <p id="briefing-text">...</p>
+        <div class="btn blink" id="briefing-btn">ACCEPT MISSION</div>
+    </div>
+
+    <!-- リザルト -->
+    <div id="result-box" class="message-box">
+        <div id="result-msg" class="result-text"></div>
+        <p id="result-detail"></p>
+        <div class="btn blink" id="result-btn">NEXT</div>
+    </div>
+</div>
+
+<!-- モバイル用操作ボタン -->
+<div id="mobile-controls">
+    <div id="btn-focus" class="control-btn">FOCUS</div>
+    <div id="btn-fire" class="control-btn fire-btn">FIRE</div>
+</div>
+
+<script>
+/**
+ * THE CONTRACT - Lv1 Fix -
+ */
+
+// ==========================================
+// 1. 設定とステージ定義
+// ==========================================
+
+const GLOBAL = {
+    SWAY_BASE: 60,
+    SWAY_SPEED: 0.002,
+    FOCUS_ZOOM: 2.5,
+    FOCUS_TIME: 3000,
+    RECOVERY: 0.5,
+    HIT_RADIUS: 12,
+};
+
+const LEVELS = [
+    {
+        id: 1,
+        title: "LEVEL 1: ROOKIE",
+        subtitle: "ビルの谷間",
+        desc: "ターゲットはビルの窓際にいる。<br>「明かりがついている窓」を探せ。<br>風と手ブレを計算して狙撃せよ。<br><br>※画面ドラッグで照準移動",
+        type: 'normal',
+        bgType: 'day',
+        windMin: 10, windMax: 40,
+        swayScale: 1.0, distScale: 1.0
+    },
+    {
+        id: 2,
+        title: "LEVEL 2: CROWD",
+        subtitle: "群衆の影",
+        desc: "空港ロビー。<br>「青いネクタイ」の男を狙え。<br>一般市民を巻き込むな。",
+        type: 'crowd',
+        bgType: 'sunset',
+        windMin: 30, windMax: 80,
+        swayScale: 1.0, distScale: 0.8,
+        civilianCount: 6
+    },
+    {
+        id: 3,
+        title: "LEVEL 3: GLASS",
+        subtitle: "特殊防弾ガラス",
+        desc: "防弾ガラスの奥にターゲットを確認。<br>ガラスの隙間が開く一瞬を狙え。",
+        type: 'glass',
+        bgType: 'sunset',
+        windMin: 50, windMax: 100,
+        swayScale: 1.2, distScale: 0.7,
+        glassSpeed: 2.0
+    },
+    {
+        id: 4,
+        title: "LEVEL 4: RICOCHET",
+        subtitle: "跳弾の美学",
+        desc: "死角に潜むターゲット。<br>「金属プレート」を利用し、跳弾で仕留めろ。",
+        type: 'ricochet',
+        bgType: 'day',
+        windMin: 20, windMax: 60,
+        swayScale: 1.0, distScale: 0.6
+    },
+    {
+        id: 5,
+        title: "LEVEL 5: STORM",
+        subtitle: "神の領域",
+        desc: "嵐の洋上。視界不良。<br>揺れと雷光を読み、一撃必中を狙え。",
+        type: 'storm',
+        bgType: 'storm',
+        windMin: 150, windMax: 250,
+        swayScale: 2.5, distScale: 0.5
+    }
+];
+
+// ==========================================
+// 2. ゲーム状態
+// ==========================================
+
+const STATE = { BRIEFING: 0, PLAYING: 1, ANIMATION: 2, RESULT: 3, ALL_CLEAR: 4 };
+
+let currentState = STATE.BRIEFING;
+let currentLevelIdx = 0;
+let levelData = null;
+
+let targets = [];
+let obstacles = [];
+let reflector = null;
+let worldOffset = { x:0, y:0 };
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+// マウス・スコープ座標
+let mouse = { x: window.innerWidth/2, y: window.innerHeight/2 };
+let scope = { x: window.innerWidth/2, y: window.innerHeight/2 };
+let focusGauge = GLOBAL.FOCUS_TIME;
+let isFocusing = false;
+let lastTime = 0;
+
+let wind = { x:0, y:0, power:0, angle:0 };
+let lightning = 0;
+let hitResult = null;
+
+// ==========================================
+// 3. 初期化・イベント
+// ==========================================
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const ui = {
+    briefing: document.getElementById('briefing-box'),
+    result: document.getElementById('result-box'),
+    level: document.getElementById('level-indicator'),
+    
+    showBriefing: (idx) => {
+        if (idx >= LEVELS.length) { ui.showAllClear(); return; }
+        const data = LEVELS[idx];
+        document.getElementById('briefing-title').textContent = data.title;
+        document.getElementById('briefing-subtitle').textContent = data.subtitle;
+        document.getElementById('briefing-text').innerHTML = data.desc;
+        document.getElementById('briefing-btn').textContent = "ACCEPT MISSION";
+        ui.hideAll();
+        ui.briefing.classList.add('active');
+        currentState = STATE.BRIEFING;
+        ui.level.textContent = "STANDBY";
+    },
+    showResult: (success, reason) => {
+        const title = document.getElementById('result-msg');
+        const detail = document.getElementById('result-detail');
+        const btn = document.getElementById('result-btn');
+        if (success) {
+            title.textContent = "MISSION ACCOMPLISHED";
+            title.className = "result-text win";
+            detail.textContent = "ターゲット排除確認。";
+            btn.textContent = "NEXT MISSION";
+        } else {
+            title.textContent = "MISSION FAILED";
+            title.className = "result-text lose";
+            detail.textContent = reason || "ターゲットを逃した...";
+            btn.textContent = "RETRY";
+        }
+        ui.hideAll();
+        ui.result.classList.add('active');
+        currentState = STATE.RESULT;
+    },
+    showAllClear: () => {
+        const title = document.getElementById('result-msg');
+        const detail = document.getElementById('result-detail');
+        const btn = document.getElementById('result-btn');
+        title.textContent = "THE LEGEND";
+        title.className = "result-text win";
+        detail.textContent = "全ミッション完了。";
+        btn.textContent = "BACK TO TITLE";
+        ui.hideAll();
+        ui.result.classList.add('active');
+        currentState = STATE.ALL_CLEAR;
+    },
+    hideAll: () => {
+        ui.briefing.classList.remove('active');
+        ui.result.classList.remove('active');
+    }
+};
+
+// --- PC (マウス) 操作 ---
+document.addEventListener('mousemove', e => { 
+    // マウス操作時は絶対位置で更新
+    mouse.x = e.clientX; 
+    mouse.y = e.clientY; 
+});
+document.addEventListener('mousedown', e => {
+    // Canvasクリックで発射
+    if (e.target.id === 'gameCanvas' && currentState === STATE.PLAYING && e.button === 0) fireShot();
+});
+
+// --- モバイル (タッチ) 操作 ---
+let touchStartX = 0;
+let touchStartY = 0;
+
+canvas.addEventListener('touchstart', e => {
+    if (e.touches.length > 0) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }
+}, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault(); // スクロール防止
+    if (currentState !== STATE.PLAYING) return;
+    
+    if (e.touches.length > 0) {
+        const cx = e.touches[0].clientX;
+        const cy = e.touches[0].clientY;
+        
+        // 移動量（トラックパッド方式）
+        const sensitivity = 1.2;
+        const dx = (cx - touchStartX) * sensitivity;
+        const dy = (cy - touchStartY) * sensitivity;
+        
+        mouse.x += dx;
+        mouse.y += dy;
+        
+        // 画面外に行き過ぎないようクランプ
+        mouse.x = Math.max(0, Math.min(canvas.width, mouse.x));
+        mouse.y = Math.max(0, Math.min(canvas.height, mouse.y));
+        
+        touchStartX = cx;
+        touchStartY = cy;
+    }
+}, {passive: false});
+
+// モバイルボタンイベント
+const btnFocus = document.getElementById('btn-focus');
+const btnFire = document.getElementById('btn-fire');
+
+// FOCUS: 押している間だけオン
+const startFocus = (e) => {
+    e.preventDefault();
+    if (currentState === STATE.PLAYING && !isFocusing && focusGauge > 0) {
+        isFocusing = true;
+        btnFocus.classList.add('pressed');
+        playSound('focus_start');
+    }
+};
+const endFocus = (e) => {
+    e.preventDefault();
+    if (isFocusing) {
+        isFocusing = false;
+        btnFocus.classList.remove('pressed');
+        playSound('focus_end');
+    }
+};
+btnFocus.addEventListener('touchstart', startFocus);
+btnFocus.addEventListener('touchend', endFocus);
+btnFocus.addEventListener('mousedown', startFocus);
+btnFocus.addEventListener('mouseup', endFocus);
+btnFocus.addEventListener('mouseleave', endFocus);
+
+// FIRE: タップで発射
+const handleFire = (e) => {
+    e.preventDefault();
+    if (currentState === STATE.PLAYING) {
+        btnFire.classList.add('pressed');
+        setTimeout(() => btnFire.classList.remove('pressed'), 100);
+        fireShot();
+    }
+};
+btnFire.addEventListener('touchstart', handleFire);
+btnFire.addEventListener('mousedown', handleFire);
+
+// UIボタン
+document.getElementById('briefing-btn').addEventListener('click', () => { initAudio(); initLevel(currentLevelIdx); });
+document.getElementById('result-btn').addEventListener('click', () => {
+    if (currentState === STATE.ALL_CLEAR) { currentLevelIdx = 0; ui.showBriefing(0); }
+    else if (hitResult && hitResult.success) { currentLevelIdx++; ui.showBriefing(currentLevelIdx); }
+    else { initLevel(currentLevelIdx); }
+});
+
+// PC用キーボード操作
+document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && currentState === STATE.PLAYING && !isFocusing && focusGauge > 0) { 
+        isFocusing = true; 
+        btnFocus.classList.add('pressed'); // UIも連動
+        playSound('focus_start'); 
+    }
+});
+document.addEventListener('keyup', e => {
+    if (e.code === 'Space' && isFocusing) { 
+        isFocusing = false; 
+        btnFocus.classList.remove('pressed');
+        playSound('focus_end'); 
+    }
+});
+
+// ==========================================
+// 4. ゲームロジック
+// ==========================================
+
+function initLevel(idx) {
+    levelData = LEVELS[idx];
+    ui.hideAll();
+    ui.level.textContent = levelData.title;
+    currentState = STATE.PLAYING;
+    hitResult = null;
+    focusGauge = GLOBAL.FOCUS_TIME;
+    isFocusing = false;
+    btnFocus.classList.remove('pressed');
+    
+    // スコープ位置リセット
+    mouse.x = canvas.width/2;
+    mouse.y = canvas.height/2;
+    scope = { x: mouse.x, y: mouse.y };
+    
+    worldOffset = { x:0, y:0 };
+    lightning = 0;
+
+    const angle = Math.random() * Math.PI * 2;
+    const power = levelData.windMin + Math.random() * (levelData.windMax - levelData.windMin);
+    wind = { x: Math.cos(angle)*power, y: Math.sin(angle)*power, power: power, angle: angle };
+
+    targets = []; obstacles = []; reflector = null;
+    const cx = canvas.width/2, cy = canvas.height/2;
+
+    if (levelData.type === 'normal') targets.push(createChar(cx, cy, true));
+    else if (levelData.type === 'crowd') {
+        targets.push(createChar(cx, cy, true));
+        for(let i=0; i<levelData.civilianCount; i++) targets.push(createChar(cx + (Math.random()-0.5)*400, cy + (Math.random()-0.5)*100, false));
+    }
+    else if (levelData.type === 'glass') {
+        targets.push(createChar(cx, cy, true));
+        obstacles.push({ x: cx - 200, y: cy - 100, w: 150, h: 200, type: 'glass', speed: levelData.glassSpeed, dir: 1, baseX: cx - 200 });
+        obstacles.push({ x: cx + 50, y: cy - 100, w: 150, h: 200, type: 'glass', speed: levelData.glassSpeed, dir: -1, baseX: cx + 50 });
+    }
+    else if (levelData.type === 'ricochet') {
+        targets.push(createChar(cx + 300, cy, true));
+        obstacles.push({ x: cx + 100, y: cy - 150, w: 150, h: 300, type: 'wall' });
+        reflector = { x: cx - 200, y: cy - 50, w: 40, h: 100 };
+    }
+    else if (levelData.type === 'storm') targets.push(createChar(cx, cy, true));
+
+    playAmbience(levelData.type === 'storm');
+    requestAnimationFrame(gameLoop);
+}
+
+function createChar(x, y, isTarget) {
+    return {
+        x: x, y: y, baseX: x, baseY: y,
+        isTarget: isTarget,
+        hasTie: isTarget && levelData.type === 'crowd',
+        moveType: levelData.type === 'crowd' ? 'walk' : 'static',
+        phase: Math.random() * Math.PI * 2
+    };
+}
+
+function gameLoop(time) {
+    const dt = time - lastTime;
+    lastTime = time;
+    update(dt, time);
+    draw(time);
+    if (currentState === STATE.PLAYING || currentState === STATE.ANIMATION) requestAnimationFrame(gameLoop);
+}
+
+function update(dt, time) {
+    if (currentState !== STATE.PLAYING) return;
+
+    if (isFocusing) { focusGauge -= dt; if (focusGauge <= 0) { focusGauge = 0; isFocusing = false; btnFocus.classList.remove('pressed'); playSound('focus_end'); } }
+    else { focusGauge += dt * GLOBAL.RECOVERY; if (focusGauge > GLOBAL.FOCUS_TIME) focusGauge = GLOBAL.FOCUS_TIME; }
+
+    let swayAmt = GLOBAL.SWAY_BASE * levelData.swayScale;
+    let swayX = 0, swayY = 0;
+    if (!isFocusing) {
+        swayX = Math.sin(time * GLOBAL.SWAY_SPEED) * swayAmt + Math.cos(time * 0.003) * (swayAmt*0.5);
+        swayY = Math.cos(time * 0.0017) * swayAmt;
+    }
+    scope.x += (mouse.x + swayX - scope.x) * 0.5;
+    scope.y += (mouse.y + swayY - scope.y) * 0.5;
+
+    targets.forEach(t => { if (t.moveType === 'walk') t.x = t.baseX + Math.sin(time * 0.001 + t.phase) * 100; });
+    obstacles.forEach(o => { if (o.type === 'glass') o.x = o.baseX + Math.sin(time * 0.001 * o.speed) * 80; });
+
+    if (levelData.type === 'storm') {
+        worldOffset.x = Math.sin(time * 0.0008) * 50 + Math.sin(time * 0.002) * 20;
+        worldOffset.y = Math.cos(time * 0.001) * 30;
+        if (lightning > 0) lightning -= 0.05;
+        if (Math.random() < 0.005) { lightning = 1.0; playSound('thunder'); }
+    }
+}
+
+function fireShot() {
+    playSound('gunshot');
+    const hitX = scope.x + wind.x;
+    const hitY = scope.y + wind.y;
+    let success = false, failReason = "", hitSomething = false;
+
+    for (let o of obstacles) {
+        let ox = o.x + worldOffset.x, oy = o.y + worldOffset.y;
+        if (hitX > ox && hitX < ox + o.w && hitY > oy && hitY < oy + o.h) {
+            hitSomething = true;
+            if (o.type === 'glass') { failReason = "弾丸が防弾ガラスに阻まれた。"; playSound('ricochet'); }
+            else { failReason = "壁に着弾。ターゲットに届かない。"; }
+            break;
+        }
+    }
+    if (!hitSomething && reflector) {
+        let rx = reflector.x + worldOffset.x, ry = reflector.y + worldOffset.y;
+        if (hitX > rx && hitX < rx + reflector.w && hitY > ry && hitY < ry + reflector.h) {
+            success = true; hitSomething = true; playSound('ricochet');
+            let t = targets.find(t => t.isTarget);
+            hitResult = { x: hitX, y: hitY, success: true, ricochetTo: {x: t.x + worldOffset.x, y: t.y + worldOffset.y} };
+        }
+    }
+    if (!hitSomething) {
+        const radius = GLOBAL.HIT_RADIUS * levelData.distScale;
+        for (let t of targets) {
+            let tx = t.x + worldOffset.x, ty = t.y + worldOffset.y;
+            if (Math.sqrt(Math.pow(hitX-tx, 2) + Math.pow(hitY-ty, 2)) < radius) {
+                hitSomething = true;
+                if (t.isTarget) success = true;
+                else { success = false; failReason = "一般市民を誤射した。任務失敗。"; }
+                break;
+            }
+        }
+    }
+    if (!hitSomething && !success) failReason = "ターゲットを外した。";
+    if (!hitResult) hitResult = { x: hitX, y: hitY, success: success, reason: failReason };
+    currentState = STATE.ANIMATION;
+    setTimeout(() => { success ? playSound('win') : playSound('lose'); ui.showResult(success, failReason); }, 1500);
+}
+
+// ==========================================
+// 5. 描画 (Graphic Remastered)
+// ==========================================
+
+function draw(time) {
+    let brightness = 1.0;
+    if (levelData.bgType === 'storm' || levelData.bgType === 'sunset') brightness = 0.5;
+    if (levelData.type === 'storm' && lightning > 0) brightness += lightning * 0.8;
+
+    // キャンバス初期化（黒で塗りつぶさないとdestination-outが効かない場合があるが、背景描画で上書きする）
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    
+    // ズーム処理
+    if (isFocusing) {
+        ctx.translate(canvas.width/2, canvas.height/2);
+        ctx.scale(GLOBAL.FOCUS_ZOOM, GLOBAL.FOCUS_ZOOM);
+        ctx.translate(-scope.x, -scope.y);
+    } else {
+        ctx.translate(canvas.width/2 - scope.x, canvas.height/2 - scope.y);
+    }
+    ctx.translate(worldOffset.x, worldOffset.y);
+
+    // 1. 背景描画 (グラデーション空)
+    drawSky(brightness);
+
+    // 2. 背景ビル群 (遠景)
+    drawCityBackground(brightness);
+
+    // 3. メインオブジェクト描画
+    drawWorldObjects(time, brightness);
+    
+    // 4. 着弾エフェクト
+    if (hitResult) drawHitEffects();
+
+    ctx.restore();
+
+    // 5. 手前のエフェクト (雨)
+    if (levelData.type === 'storm') drawRain(time);
+
+    // 6. スコープ (リアル表現)
+    drawRealisticScope();
+
+    // 7. HUD
+    drawHUD();
+}
+
+function drawSky(brightness) {
+    const w = 4000;
+    const h = 4000;
+    // 空のグラデーション作成
+    const grad = ctx.createLinearGradient(0, scope.y - 1000, 0, scope.y + 1000);
+    
+    if (levelData.bgType === 'day') {
+        grad.addColorStop(0, `rgba(100, 180, 255, ${brightness})`); // 青空
+        grad.addColorStop(1, `rgba(200, 230, 255, ${brightness})`);
+    } else if (levelData.bgType === 'sunset') {
+        grad.addColorStop(0, `rgba(60, 40, 80, ${brightness})`); // 紫
+        grad.addColorStop(0.5, `rgba(200, 100, 50, ${brightness})`); // オレンジ
+        grad.addColorStop(1, `rgba(100, 50, 30, ${brightness})`);
+    } else if (levelData.bgType === 'storm') {
+        grad.addColorStop(0, `rgba(5, 5, 20, ${brightness})`); // 濃紺
+        grad.addColorStop(1, `rgba(20, 20, 40, ${brightness})`);
+    }
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(scope.x - w/2, scope.y - h/2, w, h);
+}
+
+function drawCityBackground(brightness) {
+    const cx = canvas.width/2;
+    const cy = canvas.height/2;
+    
+    // メインターゲットがいるビル
+    drawBuilding(cx - 300, cy - 400, 600, 1000, brightness, 50);
+
+    // 左右のビル（装飾）
+    drawBuilding(cx - 700, cy - 200, 300, 800, brightness * 0.8, 30);
+    drawBuilding(cx + 400, cy - 300, 400, 900, brightness * 0.8, 40);
+}
+
+// プロシージャルビル描画関数
+function drawBuilding(x, y, w, h, brightness, winSize) {
+    // ビル本体
+    ctx.fillStyle = `rgba(20, 20, 25, ${brightness})`;
+    ctx.fillRect(x, y, w, h);
+    
+    // 窓の描画
+    const cols = Math.floor((w - 20) / winSize);
+    const rows = Math.floor((h - 20) / (winSize * 1.5));
+    
+    for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+            const seed = (i * 1234 + j * 5678 + x);
+            const isLit = Math.sin(seed) > 0.3; // 70%くらい点灯
+
+            const wx = x + 10 + i * winSize;
+            const wy = y + 20 + j * (winSize * 1.5);
+            
+            if (isLit) {
+                const flicker = Math.random() * 0.2 + 0.8; // 微妙に揺らぐ
+                ctx.fillStyle = `rgba(255, 240, 150, ${brightness * flicker})`;
+            } else {
+                ctx.fillStyle = `rgba(10, 10, 15, ${brightness})`;
+            }
+            ctx.fillRect(wx + 2, wy + 2, winSize - 8, winSize * 1.2);
+        }
+    }
+}
+
+function drawWorldObjects(time, brightness) {
+    targets.forEach(t => drawPerson(t, brightness));
+
+    obstacles.forEach(o => {
+        if (o.type === 'glass') {
+            const grad = ctx.createLinearGradient(o.x, o.y, o.x + o.w, o.y + o.h);
+            grad.addColorStop(0, `rgba(200, 255, 255, 0.1)`);
+            grad.addColorStop(0.5, `rgba(200, 255, 255, 0.3)`);
+            grad.addColorStop(1, `rgba(200, 255, 255, 0.1)`);
+            ctx.fillStyle = grad;
+            ctx.strokeStyle = `rgba(200, 255, 255, 0.4)`;
+            ctx.lineWidth = 1;
+            ctx.fillRect(o.x, o.y, o.w, o.h);
+            ctx.strokeRect(o.x, o.y, o.w, o.h);
+        } else if (o.type === 'wall') {
+            ctx.fillStyle = `rgba(50, 50, 55, ${brightness})`;
+            ctx.fillRect(o.x, o.y, o.w, o.h);
+            ctx.fillStyle = `rgba(0,0,0,0.2)`;
+            ctx.fillRect(o.x, o.y + 50, o.w, 10);
+            ctx.fillRect(o.x, o.y + 200, o.w, 20);
+        }
+    });
+
+    if (reflector) {
+        const grad = ctx.createLinearGradient(reflector.x, reflector.y, reflector.x + reflector.w, reflector.y);
+        grad.addColorStop(0, '#555');
+        grad.addColorStop(0.5, '#fff'); // ハイライト
+        grad.addColorStop(1, '#555');
+        ctx.fillStyle = grad;
+        ctx.fillRect(reflector.x, reflector.y, reflector.w, reflector.h);
+    }
+}
+
+function drawPerson(c, brightness) {
+    const scale = levelData.distScale;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.scale(scale, scale);
+
+    // ★追加修正: Lv.1ターゲット強調（逆光演出）
+    if (c.isTarget && levelData.type === 'normal') {
+        // 背後の窓を明るく光らせる
+        ctx.fillStyle = `rgba(255, 250, 200, ${brightness + 0.2})`;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = 'rgba(255, 200, 100, 0.5)';
+        // 人物のシルエットが収まるサイズ
+        ctx.fillRect(-20, -20, 40, 80);
+        ctx.shadowBlur = 0;
+    }
+
+    const colorBase = `rgba(10, 10, 10, ${brightness})`;
+
+    // 胴体
+    ctx.fillStyle = colorBase;
+    ctx.beginPath();
+    ctx.moveTo(-12, 12);
+    ctx.lineTo(12, 12);
+    ctx.lineTo(10, 45); 
+    ctx.lineTo(-10, 45);
+    ctx.closePath();
+    ctx.fill();
+
+    // ネクタイ
+    if (c.hasTie) {
+        ctx.fillStyle = '#0af';
+        ctx.beginPath();
+        ctx.moveTo(-3, 15);
+        ctx.lineTo(3, 15);
+        ctx.lineTo(0, 35);
+        ctx.fill();
+    }
+
+    // 頭部
+    ctx.fillStyle = colorBase;
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawHitEffects() {
+    const markX = hitResult.x - worldOffset.x;
+    const markY = hitResult.y - worldOffset.y;
+    
+    // 着弾点
+    const color = hitResult.success ? '#f00' : '#fff';
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(markX, markY, 3, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(markX-5, markY-5); ctx.lineTo(markX+5, markY+5);
+    ctx.moveTo(markX+5, markY-5); ctx.lineTo(markX-5, markY+5);
+    ctx.stroke();
+
+    if (hitResult.ricochetTo) {
+        // 跳弾ライン
+        const tx = hitResult.ricochetTo.x - worldOffset.x;
+        const ty = hitResult.ricochetTo.y - worldOffset.y;
+        
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(markX, markY);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+        
+        // ターゲット側着弾
+        ctx.fillStyle = '#f00';
+        ctx.beginPath(); ctx.arc(tx, ty, 3, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+function drawRain(time) {
+    ctx.strokeStyle = 'rgba(200, 220, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const w = canvas.width;
+    const h = canvas.height;
+    for (let i = 0; i < 150; i++) {
+        // 時間経過で動く雨
+        const x = (i * 137 + time * 1.5) % w;
+        const y = (i * 253 + time * 3.0) % h;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 10, y + 30); // 強風で斜めに
+    }
+    ctx.stroke();
+}
+
+// リアルなスコープ描画
+function drawRealisticScope() {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const r = canvas.height * 0.45;
+
+    // スコープの外側（完全な黒）
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.rect(0, 0, canvas.width, canvas.height);
+    ctx.arc(cx, cy, r, 0, Math.PI*2, true);
+    ctx.fill();
+
+    // レンズの周辺減光とボケ
+    const grad = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, r);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.4)'); 
+    grad.addColorStop(0.95, 'rgba(0, 0, 0, 0.9)'); 
+    grad.addColorStop(1, 'rgba(0, 0, 0, 1)');      
+    
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // レティクル
+    ctx.strokeStyle = 'rgba(200, 0, 0, 0.8)';
+    ctx.lineWidth = 1;
+    
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+
+    // ミル・ドット
+    ctx.fillStyle = 'rgba(200, 0, 0, 0.9)';
+    for(let i = -4; i <= 4; i++){
+        if(i === 0) continue;
+        const gap = 50;
+        ctx.beginPath(); ctx.arc(cx + i * gap, cy, 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy + i * gap, 1.5, 0, Math.PI*2); ctx.fill();
+    }
+    
+    // 中心ドット
+    ctx.fillStyle = '#f00';
+    ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
+}
+
+function drawHUD() {
+    const wx = canvas.width - 120;
+    const wy = canvas.height - 120;
+    
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+
+    ctx.fillStyle = '#4f4';
+    ctx.font = 'bold 16px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText("WIND: " + (wind.power/10).toFixed(1) + "m/s", wx, wy + 50);
+
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wind.angle);
+    ctx.strokeStyle = '#4f4';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-20,0); ctx.lineTo(20,0);
+    ctx.lineTo(12,-5); ctx.moveTo(20,0); ctx.lineTo(12,5);
+    ctx.stroke();
+    ctx.restore();
+
+    const gx = 50, gy = canvas.height - 50;
+    const ratio = focusGauge / GLOBAL.FOCUS_TIME;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(gx, gy, 200, 10);
+    ctx.fillStyle = ratio > 0.3 ? '#4f4' : '#f44';
+    ctx.fillRect(gx, gy, 200 * ratio, 10);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText("FOCUS", gx, gy - 10);
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+}
+
+// ==========================================
+// 6. 音声 (Web Audio API)
+// ==========================================
+let audioCtx = null;
+let ambienceNode = null;
+
+function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function makeNoise() {
+    const bs = audioCtx.sampleRate * 2, buf = audioCtx.createBuffer(1, bs, audioCtx.sampleRate), d = buf.getChannelData(0);
+    for(let i=0; i<bs; i++) d[i] = Math.random()*2-1;
+    return buf;
+}
+function playSound(type) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    if (type === 'gunshot') {
+        const src = audioCtx.createBufferSource(); src.buffer = makeNoise();
+        const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(3000, t); f.frequency.exponentialRampToValueAtTime(100, t+0.2);
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.3);
+        src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(t);
+        const osc = audioCtx.createOscillator(); osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(10, t+0.5);
+        const og = audioCtx.createGain(); og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.01, t+0.5);
+        osc.connect(og); og.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.5);
+    } else if (type === 'ricochet') {
+        const osc = audioCtx.createOscillator(); osc.type = 'square'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(2000, t+0.1);
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.01, t+0.1);
+        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.1);
+    } else if (type === 'thunder') {
+        const src = audioCtx.createBufferSource(); src.buffer = makeNoise();
+        const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 200;
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.01, t+1.0);
+        src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(t);
+    } else if (type === 'focus_start') {
+        const osc = audioCtx.createOscillator(); osc.frequency.setValueAtTime(200, t); osc.frequency.linearRampToValueAtTime(400, t+0.5);
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.1, t+0.5);
+        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.6);
+    } else if (type === 'focus_end') {
+        const osc = audioCtx.createOscillator(); osc.frequency.setValueAtTime(400, t); osc.frequency.linearRampToValueAtTime(200, t+0.3);
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.1, t); g.gain.linearRampToValueAtTime(0, t+0.3);
+        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+0.3);
+    } else if (type === 'win') {
+        const osc = audioCtx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 523.25;
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.1, t+0.1); g.gain.linearRampToValueAtTime(0, t+2);
+        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+2);
+    } else if (type === 'lose') {
+        const osc = audioCtx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 100;
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.1, t); g.gain.linearRampToValueAtTime(0, t+1);
+        osc.connect(g); g.connect(audioCtx.destination); osc.start(t); osc.stop(t+1);
+    }
+}
+function playAmbience(isStorm) {
+    if (!audioCtx) return;
+    if (ambienceNode) { ambienceNode.stop(); ambienceNode = null; }
+    const src = audioCtx.createBufferSource(); src.buffer = makeNoise(); src.loop = true;
+    const f = audioCtx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = isStorm ? 800 : 300;
+    const g = audioCtx.createGain(); g.gain.value = isStorm ? 0.15 : 0.05;
+    src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(); ambienceNode = src;
+}
+
+ui.showBriefing(0);
+
+</script>
+</body>
+</html>
